@@ -156,15 +156,16 @@ export function VocabAppContent() {
   
   useEffect(() => {
     currentWordRef.current = currentWord;
-    
-    // 学习模式和选择题模式：显示单词时自动播放发音
-    if (currentWord && mode !== 'spell') {
-      // 小延迟确保DOM渲染完成
+  }, [currentWord]);
+  
+  // 只在切换单词时播放发音（监听单词ID而非整个对象）
+  useEffect(() => {
+    if (currentWord?.id && mode !== 'spell') {
       setTimeout(() => {
         playWord(currentWord.word);
       }, 100);
     }
-  }, [currentWord, mode]);
+  }, [currentWord?.id, mode]);
 
   useEffect(() => {
     unsavedCountRef.current = unsavedCount;
@@ -549,7 +550,7 @@ export function VocabAppContent() {
 
     if (isCorrect) {
       // HTML: this.currentCard.tempStep = 1.5; 
-      playWord(currentWord.word);
+      // 答对时不需要再播放发音，用户已经听过了
       
       const currentSessionWords = sessionWordsRef.current;
       const currentQueue = queueRef.current;
