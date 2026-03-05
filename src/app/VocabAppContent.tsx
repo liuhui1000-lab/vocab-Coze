@@ -1115,24 +1115,23 @@ export function VocabAppContent() {
     );
   }
 
-  // Study view - 优化布局，紧凑且适配键盘
+  // Study view - 使用fixed定位精确控制布局
   if (currentView === 'study' && currentWord) {
     const isSpellMode = mode === 'spell';
     
     // 根据答题结果决定动画类
     const resultAnimation = spellResult?.correct ? 'success-bounce' : (spellResult && !spellResult.correct ? 'error-shake' : '');
     
+    // 内容区域的bottom值：按钮高度(56px) + 键盘高度
+    const contentBottom = keyboardHeight > 0 ? `${keyboardHeight + 56}px` : '56px';
+    
     return (
       <div 
-        className="flex flex-col" 
-        style={{ 
-          background: 'linear-gradient(to bottom, #EEF2FF, #fff)',
-          paddingTop: '52px',  // 为固定header留空间（header高度48px + border）
-          paddingBottom: keyboardHeight > 0 ? `${keyboardHeight + 56}px` : '56px'  // 为固定按钮留空间
-        }}
+        className="fixed inset-0 overflow-hidden" 
+        style={{ background: 'linear-gradient(to bottom, #EEF2FF, #fff)' }}
       >
         {/* Header - 固定顶部 */}
-        <div className="fixed top-0 left-0 right-0 bg-white/90 backdrop-blur-sm px-4 py-2 flex items-center justify-between shadow-sm z-40 border-b border-indigo-100 h-12">
+        <div className="absolute top-0 left-0 right-0 bg-white/90 backdrop-blur-sm px-4 py-2 flex items-center justify-between shadow-sm z-40 border-b border-indigo-100 h-12">
           <button
             onClick={() => {
               if (confirm('确定退出学习？进度会自动保存。')) {
@@ -1151,46 +1150,54 @@ export function VocabAppContent() {
           </span>
         </div>
 
-        {/* Penalty badge */}
-        {currentWord.inPenalty && (
-          <div className="bg-amber-50 text-amber-600 text-center py-1 text-xs font-medium">
-            🔥 强化中 ({currentWord.penaltyProgress}/3)
-          </div>
-        )}
+        {/* 可滚动的内容区域 - fixed定位，精确控制top和bottom */}
+        <div 
+          className="absolute left-0 right-0 overflow-y-auto"
+          style={{ 
+            top: '48px',      // header高度
+            bottom: contentBottom
+          }}
+        >
+          {/* Penalty badge */}
+          {currentWord.inPenalty && (
+            <div className="bg-amber-50 text-amber-600 text-center py-1 text-xs font-medium">
+              🔥 强化中 ({currentWord.penaltyProgress}/3)
+            </div>
+          )}
 
-        {/* Main content */}
-        <div className="p-3">
-          <div className={`bg-white rounded-2xl shadow-sm border border-indigo-100 p-4 sm:p-6 flex flex-col items-center ${resultAnimation}`}>
-            {/* Word display */}
-            {isSpellMode ? (
-              <div className="text-center">
-                <div className="text-xl text-indigo-800 mb-4 font-medium">{currentWord.meaning}</div>
-              </div>
-            ) : (
-              <>
-                <div className="text-4xl font-bold text-indigo-900 mb-2">{currentWord.word}</div>
-                {currentWord.phonetic && (
-                  <button
-                    onClick={() => playWord(currentWord.word)}
-                    className="flex items-center gap-1 bg-indigo-50 px-4 py-2 rounded-full text-indigo-600 hover:bg-indigo-100 cursor-pointer transition-colors"
-                  >
-                    <span>{currentWord.phonetic}</span>
-                    <span>🔊</span>
-                  </button>
-                )}
-              </>
-            )}
+          {/* Main content */}
+          <div className="p-3">
+            <div className={`bg-white rounded-2xl shadow-sm border border-indigo-100 p-4 sm:p-6 flex flex-col items-center ${resultAnimation}`}>
+              {/* Word display */}
+              {isSpellMode ? (
+                <div className="text-center">
+                  <div className="text-xl text-indigo-800 mb-4 font-medium">{currentWord.meaning}</div>
+                </div>
+              ) : (
+                <>
+                  <div className="text-4xl font-bold text-indigo-900 mb-2">{currentWord.word}</div>
+                  {currentWord.phonetic && (
+                    <button
+                      onClick={() => playWord(currentWord.word)}
+                      className="flex items-center gap-1 bg-indigo-50 px-4 py-2 rounded-full text-indigo-600 hover:bg-indigo-100 cursor-pointer transition-colors"
+                    >
+                      <span>{currentWord.phonetic}</span>
+                      <span>🔊</span>
+                    </button>
+                  )}
+                </>
+              )}
 
-            {/* Meaning (learn mode) */}
-            {mode === 'learn' && (
-              <div className="mt-6 text-center">
-                <div className="text-xl text-indigo-800">{currentWord.meaning}</div>
-                {currentWord.example_en && (
-                  <div className="mt-4 p-4 bg-indigo-50 rounded-xl text-left w-full border border-indigo-100">
-                    <div className="text-indigo-900">{currentWord.example_en}</div>
-                    {currentWord.example_cn && (
-                      <div className="text-gray-500 text-sm mt-1">{currentWord.example_cn}</div>
-                    )}
+              {/* Meaning (learn mode) */}
+              {mode === 'learn' && (
+                <div className="mt-6 text-center">
+                  <div className="text-xl text-indigo-800">{currentWord.meaning}</div>
+                  {currentWord.example_en && (
+                    <div className="mt-4 p-4 bg-indigo-50 rounded-xl text-left w-full border border-indigo-100">
+                      <div className="text-indigo-900">{currentWord.example_en}</div>
+                      {currentWord.example_cn && (
+                        <div className="text-indigo-500 text-sm mt-1">{currentWord.example_cn}</div>
+                      )}
                   </div>
                 )}
               </div>
@@ -1284,16 +1291,15 @@ export function VocabAppContent() {
                 )}
               </div>
             )}
+            </div>
           </div>
         </div>
 
-        {/* Action button - 固定在底部，键盘弹出时上移 */}
+        {/* Action button - 绝对定位在底部，键盘弹出时上移 */}
         <div 
-          className="fixed left-0 right-0 bg-white/95 backdrop-blur-sm px-3 py-3 border-t border-indigo-100 shadow-lg transition-all duration-200"
+          className="absolute left-0 right-0 bg-white/95 backdrop-blur-sm px-3 py-3 border-t border-indigo-100 shadow-lg transition-all duration-200 z-50"
           style={{ 
-            bottom: keyboardHeight > 0 ? `${keyboardHeight}px` : '0',
-            // 确保在键盘弹出时按钮区域可见
-            zIndex: 50
+            bottom: keyboardHeight > 0 ? `${keyboardHeight}px` : '0'
           }}
         >
           {mode === 'learn' && (
