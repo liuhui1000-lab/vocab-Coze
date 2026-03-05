@@ -270,8 +270,9 @@ export function VocabAppContent() {
   const getStats = useCallback(() => {
     const total = allWords.length;
     
-    const newCount = allWords.filter(w => 
-      !w.progress || w.progress.state === 'new'
+    // 已学习：有进度且状态不是'new'的单词
+    const learnedCount = allWords.filter(w => 
+      w.progress && w.progress.state !== 'new'
     ).length;
     
     // 使用凌晨4点分界的复习判断
@@ -295,7 +296,7 @@ export function VocabAppContent() {
           id: s.id,
           name: s.name,
           total: categoryWords.length,
-          newCount: categoryWords.filter(w => !w.progress || w.progress.state === 'new').length,
+          learnedCount: categoryWords.filter(w => w.progress && w.progress.state !== 'new').length,
           reviewCount: categoryWords.filter(w => 
             w.progress && 
             w.progress.state !== 'new' && 
@@ -306,7 +307,7 @@ export function VocabAppContent() {
         };
       });
     
-    return { total, newCount, reviewCount, hardCount, categoryStats };
+    return { total, learnedCount, reviewCount, hardCount, categoryStats };
   }, [allWords, semesters, selectedSemesterIds]);
 
   const stats = getStats();
@@ -939,8 +940,8 @@ export function VocabAppContent() {
                   <div className="text-xs text-gray-500">📚 总量</div>
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-blue-500">{stats.newCount}</div>
-                  <div className="text-xs text-gray-500">📖 待学习</div>
+                  <div className="text-2xl font-bold text-blue-500">{stats.learnedCount}</div>
+                  <div className="text-xs text-gray-500">📖 已学习</div>
                 </div>
                 <div>
                   <div className="text-2xl font-bold text-orange-500">{stats.reviewCount}</div>
@@ -958,8 +959,7 @@ export function VocabAppContent() {
                   <div className="text-xs text-gray-500 mb-2">分类详情：</div>
                   <div className="space-y-2">
                     {stats.categoryStats.map(cs => {
-                      const learned = cs.total - cs.newCount;
-                      const progress = cs.total > 0 ? Math.round((learned / cs.total) * 100) : 0;
+                      const progress = cs.total > 0 ? Math.round((cs.learnedCount / cs.total) * 100) : 0;
                       return (
                         <div key={cs.id} className="bg-gray-50 rounded-lg p-2">
                           <div className="flex items-center justify-between text-sm mb-1">
@@ -974,7 +974,7 @@ export function VocabAppContent() {
                           </div>
                           <div className="flex gap-2 text-xs flex-wrap">
                             <span className="px-1.5 py-0.5 bg-gray-200 rounded">📚 {cs.total}</span>
-                            {cs.newCount > 0 && <span className="px-1.5 py-0.5 bg-blue-100 text-blue-600 rounded">📖 待学{cs.newCount}</span>}
+                            {cs.learnedCount > 0 && <span className="px-1.5 py-0.5 bg-blue-100 text-blue-600 rounded">📖 已学{cs.learnedCount}</span>}
                             {cs.reviewCount > 0 && <span className="px-1.5 py-0.5 bg-orange-100 text-orange-600 rounded">⏰ 复习{cs.reviewCount}</span>}
                             {cs.hardCount > 0 && <span className="px-1.5 py-0.5 bg-red-100 text-red-600 rounded">💀 困难{cs.hardCount}</span>}
                           </div>
@@ -1394,7 +1394,7 @@ export function VocabAppContent() {
               </div>
               <div className="text-center p-3 bg-blue-50 rounded-xl">
                 <div className="text-2xl font-bold text-blue-600">
-                  {stats.total - stats.newCount}
+                  {stats.learnedCount}
                 </div>
                 <div className="text-xs text-gray-500">已学习</div>
               </div>
@@ -1407,8 +1407,7 @@ export function VocabAppContent() {
               <h3 className="font-medium text-gray-600 mb-3">分类统计</h3>
               <div className="space-y-3">
                 {stats.categoryStats.map(cs => {
-                  const learned = cs.total - cs.newCount;
-                  const progress = cs.total > 0 ? Math.round((learned / cs.total) * 100) : 0;
+                  const progress = cs.total > 0 ? Math.round((cs.learnedCount / cs.total) * 100) : 0;
                   return (
                     <div key={cs.id} className="p-3 bg-gray-50 rounded-xl">
                       <div className="flex items-center justify-between mb-2">
@@ -1423,7 +1422,7 @@ export function VocabAppContent() {
                       </div>
                       <div className="flex gap-4 mt-2 text-xs text-gray-500">
                         <span>总数: {cs.total}</span>
-                        <span>待学习: {cs.newCount}</span>
+                        <span>已学习: {cs.learnedCount}</span>
                         <span>待复习: {cs.reviewCount}</span>
                         <span>困难: {cs.hardCount}</span>
                       </div>
