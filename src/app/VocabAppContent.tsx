@@ -170,7 +170,7 @@ export function VocabAppContent() {
     unsavedCountRef.current = unsavedCount;
   }, [unsavedCount]);
 
-  // 当用户返回 setup 页面时，重新获取进度数据
+  // 当用户返回 setup 页面时，重新获取进度数据并重置会话状态
   useEffect(() => {
     async function refreshProgress() {
       if (currentView === 'setup' && isLoggedIn && username && selectedSemesterIds.length > 0) {
@@ -181,6 +181,8 @@ export function VocabAppContent() {
             ...w,
             progress: progressMap.get(w.id),
           })));
+          // 重置会话相关状态，确保下次开始学习时重新计算
+          setNewWordsInSession(0);
         } catch (error) {
           console.error('Refresh progress error:', error);
         }
@@ -1384,23 +1386,23 @@ export function VocabAppContent() {
       <div className="min-h-screen p-4 flex items-center justify-center" style={{ background: 'linear-gradient(to bottom, #EEF2FF, #fff)' }}>
         <div className="text-center max-w-sm w-full">
           <div className="text-6xl mb-4 success-bounce">🎉</div>
-          <h2 className="text-2xl font-bold text-indigo-900 mb-2">任务完成！</h2>
+          <h2 className="text-2xl font-bold text-indigo-900 mb-2">学习结束！</h2>
           <p className="text-indigo-600 mb-2">
-            本组完成 {sessionWords.length} 个单词
+            本次完成 {sessionWords.filter(w => w.tempStep === 2).length} / {sessionWords.length} 个单词
           </p>
           
           {/* 显示进度摘要 */}
           <div className="bg-white rounded-xl p-4 mb-6 text-left border border-indigo-100 shadow-sm">
             <div className="flex justify-between text-sm mb-2">
-              <span className="text-indigo-500">新词学习：</span>
+              <span className="text-indigo-500">新词完成：</span>
               <span className="font-medium text-indigo-700">
-                {sessionWords.filter(w => w.isNewThisSession).length} 个
+                {sessionWords.filter(w => w.isNewThisSession && w.tempStep === 2).length} / {sessionWords.filter(w => w.isNewThisSession).length} 个
               </span>
             </div>
             <div className="flex justify-between text-sm mb-2">
-              <span className="text-indigo-500">旧词复习：</span>
+              <span className="text-indigo-500">复习完成：</span>
               <span className="font-medium text-amber-600">
-                {sessionWords.filter(w => !w.isNewThisSession).length} 个
+                {sessionWords.filter(w => !w.isNewThisSession && w.tempStep === 2).length} / {sessionWords.filter(w => !w.isNewThisSession).length} 个
               </span>
             </div>
             {remainingReviewCount > 0 && (
