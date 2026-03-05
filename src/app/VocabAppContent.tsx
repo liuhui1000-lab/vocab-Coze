@@ -945,13 +945,13 @@ export function VocabAppContent() {
   // Setup view
   if (currentView === 'setup') {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white p-4">
-        <div className="max-w-lg mx-auto">
+      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white p-3">
+        <div className="max-w-lg mx-auto space-y-3">
           {/* Header with user info */}
-          <div className="text-center py-6">
-            <h1 className="text-3xl font-bold text-blue-600">📚 中考词汇通</h1>
-            <div className="flex items-center justify-center gap-2 mt-2">
-              <span className="text-gray-500 text-sm">用户：{username}</span>
+          <div className="text-center py-3">
+            <h1 className="text-2xl font-bold text-blue-600">📚 中考词汇通</h1>
+            <div className="flex items-center justify-center gap-2 mt-1">
+              <span className="text-gray-500 text-xs">用户：{username}</span>
               <button 
                 onClick={handleLogout}
                 className="text-xs text-gray-400 hover:text-red-500"
@@ -961,143 +961,121 @@ export function VocabAppContent() {
             </div>
           </div>
 
-          {/* Dashboard */}
+          {/* Dashboard - 紧凑2x2网格 */}
           {selectedSemesterIds.length > 0 && (
-            <div className="bg-white rounded-2xl shadow-sm p-4 mb-6">
-              {/* Total stats */}
-              <div className="grid grid-cols-4 gap-2 text-center">
-                <div>
-                  <div className="text-2xl font-bold">{stats.total}</div>
-                  <div className="text-xs text-gray-500">📚 总量</div>
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-blue-500">{stats.learnedCount}</div>
-                  <div className="text-xs text-gray-500">📖 已学习</div>
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-orange-500">{stats.reviewCount}</div>
-                  <div className="text-xs text-gray-500">⏰ 待复习</div>
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-red-500">{stats.hardCount}</div>
-                  <div className="text-xs text-gray-500">💀 困难</div>
-                </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-white rounded-xl p-3 text-center shadow-sm">
+                <div className="text-2xl font-bold">{stats.total}</div>
+                <div className="text-xs text-gray-500">📚 总量</div>
               </div>
-              
-              {/* Per-category breakdown */}
-              {stats.categoryStats && stats.categoryStats.length >= 1 && (
-                <div className="mt-4 pt-4 border-t">
-                  <div className="text-xs text-gray-500 mb-2">分类详情：</div>
-                  <div className="space-y-2">
-                    {stats.categoryStats.map(cs => {
-                      const progress = cs.total > 0 ? Math.round((cs.learnedCount / cs.total) * 100) : 0;
-                      return (
-                        <div key={cs.id} className="bg-gray-50 rounded-lg p-2">
-                          <div className="flex items-center justify-between text-sm mb-1">
-                            <span className="font-medium text-gray-700">{cs.name}</span>
-                            <span className="text-xs text-gray-500">{progress}%</span>
-                          </div>
-                          <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden mb-2">
-                            <div 
-                              className="h-full bg-blue-500 rounded-full"
-                              style={{ width: `${progress}%` }}
-                            />
-                          </div>
-                          <div className="flex gap-2 text-xs flex-wrap">
-                            <span className="px-1.5 py-0.5 bg-gray-200 rounded">📚 {cs.total}</span>
-                            {cs.learnedCount > 0 && <span className="px-1.5 py-0.5 bg-blue-100 text-blue-600 rounded">📖 已学{cs.learnedCount}</span>}
-                            {cs.reviewCount > 0 && <span className="px-1.5 py-0.5 bg-orange-100 text-orange-600 rounded">⏰ 复习{cs.reviewCount}</span>}
-                            {cs.hardCount > 0 && <span className="px-1.5 py-0.5 bg-red-100 text-red-600 rounded">💀 困难{cs.hardCount}</span>}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+              <div className="bg-white rounded-xl p-3 text-center shadow-sm">
+                <div className="text-2xl font-bold text-blue-500">{stats.learnedCount}</div>
+                <div className="text-xs text-gray-500">📖 已学习</div>
+              </div>
+              <div className="bg-white rounded-xl p-3 text-center shadow-sm">
+                <div className="text-2xl font-bold text-orange-500">{stats.reviewCount}</div>
+                <div className="text-xs text-gray-500">⏰ 待复习</div>
+              </div>
+              <div className="bg-white rounded-xl p-3 text-center shadow-sm">
+                <div className="text-2xl font-bold text-red-500">{stats.hardCount}</div>
+                <div className="text-xs text-gray-500">💀 困难</div>
+              </div>
             </div>
           )}
 
           {/* Loading indicator */}
           {isLoading && (
-            <div className="text-center py-4 text-gray-500">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto"></div>
-              <p className="mt-2 text-sm">加载中...</p>
+            <div className="text-center py-3 text-gray-500">
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500 mx-auto"></div>
+              <p className="mt-1 text-xs">加载中...</p>
             </div>
           )}
 
-          {/* Semester selection */}
-          <div className="bg-white rounded-2xl shadow-sm p-4 mb-6">
-            <h2 className="font-semibold text-gray-700 mb-4">选择分类</h2>
-            <div className="space-y-2">
-              {semesters.map(semester => (
-                <label 
-                  key={semester.id}
-                  className={`flex items-center p-3 rounded-xl cursor-pointer transition-all ${
-                    selectedSemesterIds.includes(semester.id)
-                      ? 'bg-blue-50 border-2 border-blue-500'
-                      : 'bg-gray-50 border-2 border-transparent hover:bg-gray-100'
-                  }`}
+          {/* Semester selection - 紧凑2列网格 */}
+          <div className="bg-white rounded-xl p-3 shadow-sm">
+            <h2 className="font-semibold text-gray-700 mb-2 text-sm">选择分类</h2>
+            <div className="grid grid-cols-2 gap-2">
+              {semesters.map(semester => {
+                const isSelected = selectedSemesterIds.includes(semester.id);
+                const wordCount = allWords.filter(w => w.semester_id === semester.id).length;
+                const categoryStat = stats.categoryStats?.find(cs => cs.id === semester.id);
+                
+                return (
+                  <label 
+                    key={semester.id}
+                    className={`flex flex-col items-center justify-center p-2 rounded-lg cursor-pointer transition-all ${
+                      isSelected
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleSemester(semester.id)}
+                      className="sr-only"
+                    />
+                    <span className={`font-medium text-sm ${isSelected ? 'text-white' : ''}`}>
+                      {semester.name}
+                    </span>
+                    {isSelected && wordCount > 0 && (
+                      <span className={`text-xs ${isSelected ? 'text-blue-100' : 'text-gray-500'}`}>
+                        {wordCount}词
+                        {categoryStat && categoryStat.learnedCount > 0 && ` · 已${categoryStat.learnedCount}`}
+                      </span>
+                    )}
+                    {!isSelected && (
+                      <span className="text-xs text-gray-400">{wordCount}词</span>
+                    )}
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Settings - 紧凑两行 */}
+          <div className="grid grid-cols-2 gap-2">
+            {/* Daily limit */}
+            <div className="bg-white rounded-xl p-3 shadow-sm">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-medium text-gray-700">🎯 每日新词</span>
+                <input
+                  type="number"
+                  value={dailyLimit}
+                  onChange={(e) => {
+                    const val = e.target.value === '' ? 0 : parseInt(e.target.value);
+                    setDailyLimit(isNaN(val) ? 0 : val);
+                  }}
+                  className="w-12 text-center border rounded py-1 text-sm"
+                  min="0"
+                  max="100"
+                />
+              </div>
+            </div>
+
+            {/* Session limit */}
+            <div className="bg-white rounded-xl p-3 shadow-sm">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-medium text-gray-700">📦 复习上限</span>
+                <select
+                  value={sessionLimit}
+                  onChange={(e) => setSessionLimit(parseInt(e.target.value))}
+                  className="border rounded py-1 text-sm bg-white"
                 >
-                  <input
-                    type="checkbox"
-                    checked={selectedSemesterIds.includes(semester.id)}
-                    onChange={() => toggleSemester(semester.id)}
-                    className="w-5 h-5 rounded text-blue-500"
-                  />
-                  <span className="ml-3 flex-1">
-                    <span className="font-medium">{semester.name}</span>
-                  </span>
-                  <span className="text-sm text-gray-400">
-                    {allWords.filter(w => w.semester_id === semester.id).length || 0} 词
-                  </span>
-                </label>
-              ))}
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={30}>30</option>
+                  <option value={40}>40</option>
+                </select>
+              </div>
             </div>
           </div>
 
-          {/* Daily limit */}
-          <div className="bg-white rounded-2xl shadow-sm p-4 mb-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className="font-semibold text-gray-700">🎯 每日新词</span>
-              <input
-                type="number"
-                value={dailyLimit}
-                onChange={(e) => {
-                  const val = e.target.value === '' ? 0 : parseInt(e.target.value);
-                  setDailyLimit(isNaN(val) ? 0 : val);
-                }}
-                className="w-20 text-center border rounded-lg p-2"
-                min="0"
-                max="100"
-              />
-            </div>
-            <p className="text-xs text-gray-400">设为0则今日只复习旧词</p>
-          </div>
-
-          {/* Session limit */}
-          <div className="bg-white rounded-2xl shadow-sm p-4 mb-6">
-            <div className="flex items-center justify-between mb-3">
-              <span className="font-semibold text-gray-700">📦 单次复习上限</span>
-              <select
-                value={sessionLimit}
-                onChange={(e) => setSessionLimit(parseInt(e.target.value))}
-                className="border rounded-lg p-2 bg-white"
-              >
-                <option value={10}>10 个</option>
-                <option value={20}>20 个</option>
-                <option value={30}>30 个</option>
-                <option value={40}>40 个</option>
-              </select>
-            </div>
-            <p className="text-xs text-gray-400">每次最多学习的单词数量，完成后可继续下一组</p>
-          </div>
-
-          {/* Action buttons */}
+          {/* Action buttons - 紧凑排列 */}
           <button
             onClick={() => startSession('normal')}
             disabled={selectedSemesterIds.length === 0}
-            className={`w-full py-4 rounded-2xl text-white font-semibold text-lg shadow-lg transition-all ${
+            className={`w-full py-3 rounded-xl text-white font-semibold shadow-lg transition-all ${
               selectedSemesterIds.length > 0
                 ? 'bg-blue-500 hover:bg-blue-600 active:scale-98'
                 : 'bg-gray-300 cursor-not-allowed'
@@ -1106,31 +1084,29 @@ export function VocabAppContent() {
             🚀 开始学习
           </button>
 
-          {/* Secondary actions */}
-          <div className="mt-4 flex gap-2">
+          {/* Secondary actions - 紧凑两列 */}
+          <div className="flex gap-2">
             <button
               onClick={() => setCurrentView('stats')}
-              className="flex-1 py-3 bg-gray-100 rounded-xl text-gray-600 font-medium hover:bg-gray-200"
+              className="flex-1 py-2 bg-gray-100 rounded-lg text-gray-600 text-sm font-medium hover:bg-gray-200"
             >
               📊 统计
             </button>
             <button
               onClick={() => setCurrentView('list')}
-              className="flex-1 py-3 bg-gray-100 rounded-xl text-gray-600 font-medium hover:bg-gray-200"
+              className="flex-1 py-2 bg-gray-100 rounded-lg text-gray-600 text-sm font-medium hover:bg-gray-200"
             >
               📖 词表
             </button>
+            {stats.hardCount > 0 && (
+              <button
+                onClick={() => setCurrentView('hard')}
+                className="flex-1 py-2 bg-red-50 rounded-lg text-red-600 text-sm font-medium hover:bg-red-100"
+              >
+                💀 困难({stats.hardCount})
+              </button>
+            )}
           </div>
-          
-          {/* Hard words section */}
-          {stats.hardCount > 0 && (
-            <button
-              onClick={() => setCurrentView('hard')}
-              className="w-full mt-3 py-3 bg-red-50 rounded-xl text-red-600 font-medium hover:bg-red-100"
-            >
-              💀 困难单词 ({stats.hardCount})
-            </button>
-          )}
         </div>
       </div>
     );
@@ -1140,41 +1116,38 @@ export function VocabAppContent() {
   if (currentView === 'study' && currentWord) {
     const isSpellMode = mode === 'spell';
     
-    // 键盘弹出时调整按钮区域的 padding
-    const buttonPadding = isKeyboardVisible ? 'pb-safe' : 'pb-4';
-    
     return (
-      <div className="h-[100dvh] bg-gray-50 flex flex-col overflow-hidden">
+      <div className="h-screen bg-gray-50 flex flex-col overflow-hidden fixed inset-0 z-50">
         {/* Header - 固定顶部 */}
-        <div className="bg-white px-4 py-3 flex items-center justify-between shadow-sm shrink-0">
+        <div className="bg-white px-4 py-2 flex items-center justify-between shadow-sm shrink-0">
           <button
             onClick={() => {
               if (confirm('确定退出学习？进度会自动保存。')) {
                 finishSession();
               }
             }}
-            className="text-gray-500 p-2 -ml-2 cursor-pointer"
+            className="text-gray-500 p-2 -ml-2 cursor-pointer text-sm"
           >
             ✕ 退出
           </button>
-          <span className="text-sm text-gray-500">
-            {sessionWords.filter(w => w.tempStep === 2).length} / {sessionWords.length}
+          <span className="text-xs text-gray-500">
+            {sessionWords.filter(w => w.tempStep === 2).length}/{sessionWords.length}
           </span>
-          <span className={`text-sm ${unsavedCount > 0 ? 'text-orange-500' : 'text-gray-400'}`}>
-            {unsavedCount > 0 ? `+${unsavedCount} 未存` : '已同步'}
+          <span className={`text-xs ${unsavedCount > 0 ? 'text-orange-500' : 'text-gray-400'}`}>
+            {unsavedCount > 0 ? `+${unsavedCount}` : '已同步'}
           </span>
         </div>
 
         {/* Penalty badge */}
         {currentWord.inPenalty && (
-          <div className="bg-orange-50 text-orange-600 text-center py-1 text-sm font-medium shrink-0">
+          <div className="bg-orange-50 text-orange-600 text-center py-1 text-xs font-medium shrink-0">
             🔥 强化中 ({currentWord.penaltyProgress}/3)
           </div>
         )}
 
-        {/* Main content - 可滚动区域 */}
-        <div className="flex-1 overflow-y-auto p-4 pb-2">
-          <div className="bg-white rounded-2xl shadow-sm p-6 min-h-[200px] flex flex-col items-center justify-center">
+        {/* Main content - 自适应高度 */}
+        <div className="flex-1 overflow-y-auto p-3 flex flex-col justify-center">
+          <div className="bg-white rounded-2xl shadow-sm p-4 sm:p-6 flex flex-col items-center justify-center min-h-[180px]">
             {/* Word display */}
             {isSpellMode ? (
               <div className="text-center">
@@ -1301,12 +1274,12 @@ export function VocabAppContent() {
           </div>
         </div>
 
-        {/* Action button - 固定在底部，键盘弹出时会自动上移 */}
-        <div className={`shrink-0 px-4 pt-2 bg-gray-50 ${isKeyboardVisible ? 'pb-[max(1.5rem,env(safe-area-inset-bottom))]' : 'pb-4'}`}>
+        {/* Action button - 使用 sticky 定位确保始终可见 */}
+        <div className="sticky bottom-0 bg-gray-50 px-3 py-2 border-t border-gray-100">
           {mode === 'learn' && (
             <button
               onClick={handleLearnNext}
-              className="w-full py-4 bg-blue-500 text-white rounded-2xl font-semibold text-lg cursor-pointer hover:bg-blue-600 active:scale-[0.98] transition-all"
+              className="w-full py-3 bg-blue-500 text-white rounded-xl font-semibold cursor-pointer hover:bg-blue-600 active:scale-[0.98] transition-all"
             >
               记住了，去测试 →
             </button>
@@ -1314,7 +1287,7 @@ export function VocabAppContent() {
           {mode === 'quiz' && showAnswer && (
             <button
               onClick={handleNext}
-              className="w-full py-4 bg-blue-500 text-white rounded-2xl font-semibold text-lg cursor-pointer hover:bg-blue-600 active:scale-[0.98] transition-all"
+              className="w-full py-3 bg-blue-500 text-white rounded-xl font-semibold cursor-pointer hover:bg-blue-600 active:scale-[0.98] transition-all"
             >
               下一题 →
             </button>
@@ -1327,7 +1300,7 @@ export function VocabAppContent() {
                   handleSpellSubmit(input.value);
                 }
               }}
-              className="w-full py-4 bg-blue-500 text-white rounded-2xl font-semibold text-lg cursor-pointer hover:bg-blue-600 active:scale-[0.98] transition-all"
+              className="w-full py-3 bg-blue-500 text-white rounded-xl font-semibold cursor-pointer hover:bg-blue-600 active:scale-[0.98] transition-all"
             >
               提交
             </button>
@@ -1335,7 +1308,7 @@ export function VocabAppContent() {
           {isSpellMode && spellResult && (
             <button
               onClick={handleNext}
-              className={`w-full py-4 rounded-2xl font-semibold text-lg cursor-pointer active:scale-[0.98] transition-all ${
+              className={`w-full py-3 rounded-xl font-semibold cursor-pointer active:scale-[0.98] transition-all ${
                 spellResult.correct 
                   ? 'bg-green-500 text-white hover:bg-green-600' 
                   : 'bg-blue-500 text-white hover:bg-blue-600'
