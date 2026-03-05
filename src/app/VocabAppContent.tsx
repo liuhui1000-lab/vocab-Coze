@@ -1117,9 +1117,9 @@ export function VocabAppContent() {
     const isSpellMode = mode === 'spell';
     
     return (
-      <div className="h-screen bg-gray-50 flex flex-col overflow-hidden fixed inset-0 z-50">
+      <div className="min-h-screen bg-gray-50 pb-20">
         {/* Header - 固定顶部 */}
-        <div className="bg-white px-4 py-2 flex items-center justify-between shadow-sm shrink-0">
+        <div className="fixed top-0 left-0 right-0 bg-white px-4 py-2 flex items-center justify-between shadow-sm z-40">
           <button
             onClick={() => {
               if (confirm('确定退出学习？进度会自动保存。')) {
@@ -1138,16 +1138,19 @@ export function VocabAppContent() {
           </span>
         </div>
 
+        {/* Padding for fixed header */}
+        <div className="h-10"></div>
+
         {/* Penalty badge */}
         {currentWord.inPenalty && (
-          <div className="bg-orange-50 text-orange-600 text-center py-1 text-xs font-medium shrink-0">
+          <div className="bg-orange-50 text-orange-600 text-center py-1 text-xs font-medium">
             🔥 强化中 ({currentWord.penaltyProgress}/3)
           </div>
         )}
 
-        {/* Main content - 自适应高度 */}
-        <div className="flex-1 overflow-y-auto p-3 flex flex-col justify-center">
-          <div className="bg-white rounded-2xl shadow-sm p-4 sm:p-6 flex flex-col items-center justify-center min-h-[180px]">
+        {/* Main content */}
+        <div className="p-3">
+          <div className="bg-white rounded-2xl shadow-sm p-4 sm:p-6 flex flex-col items-center justify-center min-h-[200px]">
             {/* Word display */}
             {isSpellMode ? (
               <div className="text-center">
@@ -1274,8 +1277,8 @@ export function VocabAppContent() {
           </div>
         </div>
 
-        {/* Action button - 使用 sticky 定位确保始终可见 */}
-        <div className="sticky bottom-0 bg-gray-50 px-3 py-2 border-t border-gray-100">
+        {/* Action button - 固定在底部 */}
+        <div className="fixed bottom-0 left-0 right-0 bg-white px-3 py-3 border-t border-gray-100 shadow-lg">
           {mode === 'learn' && (
             <button
               onClick={handleLearnNext}
