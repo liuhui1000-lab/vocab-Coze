@@ -1115,26 +1115,24 @@ export function VocabAppContent() {
     );
   }
 
-  // Study view - 优化布局，适配键盘
+  // Study view - 优化布局，紧凑且适配键盘
   if (currentView === 'study' && currentWord) {
     const isSpellMode = mode === 'spell';
     
     // 根据答题结果决定动画类
     const resultAnimation = spellResult?.correct ? 'success-bounce' : (spellResult && !spellResult.correct ? 'error-shake' : '');
     
-    // 计算内容区域的底部padding：按钮高度(约60px) + 键盘高度
-    const contentPaddingBottom = 60 + keyboardHeight;
-    
     return (
       <div 
-        className="min-h-screen" 
+        className="flex flex-col" 
         style={{ 
           background: 'linear-gradient(to bottom, #EEF2FF, #fff)',
-          paddingBottom: `${contentPaddingBottom}px`
+          paddingTop: '52px',  // 为固定header留空间（header高度48px + border）
+          paddingBottom: keyboardHeight > 0 ? `${keyboardHeight + 56}px` : '56px'  // 为固定按钮留空间
         }}
       >
         {/* Header - 固定顶部 */}
-        <div className="fixed top-0 left-0 right-0 bg-white/90 backdrop-blur-sm px-4 py-2 flex items-center justify-between shadow-sm z-40 border-b border-indigo-100">
+        <div className="fixed top-0 left-0 right-0 bg-white/90 backdrop-blur-sm px-4 py-2 flex items-center justify-between shadow-sm z-40 border-b border-indigo-100 h-12">
           <button
             onClick={() => {
               if (confirm('确定退出学习？进度会自动保存。')) {
@@ -1153,9 +1151,6 @@ export function VocabAppContent() {
           </span>
         </div>
 
-        {/* Padding for fixed header */}
-        <div className="h-12"></div>
-
         {/* Penalty badge */}
         {currentWord.inPenalty && (
           <div className="bg-amber-50 text-amber-600 text-center py-1 text-xs font-medium">
@@ -1165,7 +1160,7 @@ export function VocabAppContent() {
 
         {/* Main content */}
         <div className="p-3">
-          <div className={`bg-white rounded-2xl shadow-sm border border-indigo-100 p-4 sm:p-6 flex flex-col items-center justify-center min-h-[200px] ${resultAnimation}`}>
+          <div className={`bg-white rounded-2xl shadow-sm border border-indigo-100 p-4 sm:p-6 flex flex-col items-center ${resultAnimation}`}>
             {/* Word display */}
             {isSpellMode ? (
               <div className="text-center">
