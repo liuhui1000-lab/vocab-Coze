@@ -111,6 +111,7 @@ export function VocabAppContent() {
   const [spellResult, setSpellResult] = useState<{ correct: boolean; needMore?: number; completed?: boolean } | null>(null);
   const [newWordsInSession, setNewWordsInSession] = useState(0);  // 当前会话已分配的新词数量
   const [keyboardHeight, setKeyboardHeight] = useState(0);  // 键盘高度(px)
+  const [showPhonetic, setShowPhonetic] = useState(false);  // 默写模式是否显示音标（默认隐藏）
 
   // 监听键盘弹出/收起，使用 visualViewport API 精确获取键盘高度
   useEffect(() => {
@@ -1185,8 +1186,19 @@ export function VocabAppContent() {
               {isSpellMode ? (
                 <div className="text-center">
                   <div className="text-xl text-indigo-800 mb-2 font-medium">{currentWord.meaning}</div>
-                  {/* 默写模式也显示音标，帮助记忆发音 */}
-                  {currentWord.phonetic && (
+                  {/* 音标显示开关 - 默认隐藏 */}
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <label className="flex items-center gap-1 text-xs text-indigo-400 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={showPhonetic}
+                        onChange={(e) => setShowPhonetic(e.target.checked)}
+                        className="w-3 h-3"
+                      />
+                      显示音标
+                    </label>
+                  </div>
+                  {showPhonetic && currentWord.phonetic && (
                     <button
                       onClick={() => playWord(currentWord.word)}
                       className="flex items-center gap-1 bg-indigo-50 px-4 py-2 rounded-full text-indigo-600 hover:bg-indigo-100 cursor-pointer transition-colors"
@@ -1231,7 +1243,7 @@ export function VocabAppContent() {
               <div className="w-full mt-4 space-y-3">
                 <input
                   id="spell-input"
-                  key={currentWord?.id}
+                  key={`${currentWord?.id}-${currentWord?.penaltyProgress || 0}`}
                   type="text"
                   inputMode="text"
                   autoComplete="off"
