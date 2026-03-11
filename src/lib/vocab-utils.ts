@@ -12,30 +12,24 @@ export function getStudyDayDate(): Date {
 }
 
 // 判断给定日期是否在当前学习日或之前（用于待复习判断）
+// 基于凌晨4点分界：凌晨4点前算作"昨天"
 export function isDueForReview(reviewDateStr: string): boolean {
-  // 解析复习日期，只取日期部分
-  const reviewDate = new Date(reviewDateStr);
-  const reviewDateOnly = new Date(
-    reviewDate.getFullYear(),
-    reviewDate.getMonth(),
-    reviewDate.getDate()
-  );
+  // 从 ISO 字符串中提取日期部分 (YYYY-MM-DD)
+  const reviewDatePart = reviewDateStr.split('T')[0];
   
-  // 获取当前学习日
-  const studyDay = getStudyDayDate();
-  const studyDayOnly = new Date(
-    studyDay.getFullYear(),
-    studyDay.getMonth(),
-    studyDay.getDate()
-  );
+  // 获取当前学习日的日期字符串
+  const studyDayString = getStudyDayString();
   
-  // 比较日期（忽略时间）
-  return reviewDateOnly <= studyDayOnly;
+  // 比较日期字符串：如果复习日期 <= 当前学习日，则需要复习
+  return reviewDatePart <= studyDayString;
 }
 
-// Format date to YYYY-MM-DD（基于学习日）
+// Format date to YYYY-MM-DD（本地时间，用于存储和比较）
 export function formatDate(date: Date): string {
-  return date.toISOString().split('T')[0];
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 // 获取格式化的学习日日期（用于统计表）
@@ -49,6 +43,8 @@ export function getStudyDayString(): string {
 //    - 答错后：interval = 1（明天复习）
 //    - 从错题池答对（isFromErrorPool=true）：interval 锁定为 1（明天再考一次）
 //    - 连续答对2次后：恢复正常乘法
+// 
+// 返回的 nextReview 是本地日期字符串 "YYYY-MM-DD"，与 isDueForReview 的比较逻辑一致
 export function calculateNextReview(
   success: boolean,
   currentEf: number,
@@ -56,7 +52,7 @@ export function calculateNextReview(
   isNewWord: boolean = false,
   failureCount: number = 0,
   isFromErrorPool: boolean = false
-): { ef: number; interval: number; nextReview: Date } {
+): { ef: number; interval: number; nextReview: string } {
   let ef = currentEf;
   let interval = currentInterval;
   
@@ -84,14 +80,13 @@ export function calculateNextReview(
     interval = 1;  // 强制明天复习
   }
   
-  // 使用学习日基准时间，规范化为当天 00:00:00
+  // 使用学习日基准时间，计算下次复习日期
   const baseDate = getStudyDayDate();
-  const nextReview = new Date(
-    baseDate.getFullYear(),
-    baseDate.getMonth(),
-    baseDate.getDate() + interval,
-    0, 0, 0, 0  // 清除时间部分
-  );
+  const nextReviewDate = new Date(baseDate);
+  nextReviewDate.setDate(nextReviewDate.getDate() + interval);
+  
+  // 返回日期字符串 "YYYY-MM-DD"
+  const nextReview = formatDate(nextReviewDate);
   
   console.log('[calculateNextReview]', {
     success,
@@ -100,7 +95,8 @@ export function calculateNextReview(
     isFromErrorPool,
     isTopStudent,
     calculatedInterval: interval,
-    nextReview: nextReview.toISOString()
+    baseDate: formatDate(baseDate),
+    nextReview
   });
   
   return { ef, interval, nextReview };

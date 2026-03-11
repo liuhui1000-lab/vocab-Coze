@@ -759,7 +759,7 @@ export function VocabAppContent() {
       wordId: word.id,
       semesterId: word.semester_id,
       state: newState,
-      nextReview: nextReview.toISOString(),
+      nextReview: nextReview,  // 已经是日期字符串 "YYYY-MM-DD"
       ef,
       interval,
       failureCount: newFailureCount,
@@ -785,7 +785,7 @@ export function VocabAppContent() {
             state: newState,
             ef,
             interval,
-            next_review: nextReview.toISOString(),
+            next_review: nextReview,  // 已经是日期字符串 "YYYY-MM-DD"
             failure_count: newFailureCount,
             penalty_progress: 0,
             in_penalty: !success,
@@ -831,7 +831,7 @@ export function VocabAppContent() {
         wordId: w.id,
         semesterId: w.semester_id,
         state: w.progress!.state,
-        nextReview: w.progress!.next_review || new Date().toISOString(),
+        nextReview: w.progress!.next_review || getStudyDayString(),  // 使用学习日日期字符串
         ef: w.progress!.ef ?? 25,
         interval: w.progress!.interval ?? 0,
         failureCount: w.progress!.failure_count ?? 0,
