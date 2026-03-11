@@ -42,13 +42,14 @@ export function getStudyDayString(): string {
 //   - 初始值：2.5（内部存储为25，计算时除以10）
 //   - 答对：+0.1（内部+1），最高2.5
 //   - 答错：-0.2（内部-2），最低1.3
+//   - 惩罚模式完成：EF不变（答错时已-0.2）
 //
 // 惩罚模式规则：
 //   - 当天答错 → 必须连续3次正确才能过
 //   - 惩罚模式通过后 → interval=1，第二天正常复习
 //
 // 正常复习规则：
-//   - 一遍过 → EF+0.1，interval = 当前interval × 当前EF
+//   - 一遍过 → 先EF+0.1，再用新EF计算interval
 //   - 答错 → EF-0.2，进入当天的惩罚模式，interval=1
 export function calculateNextReview(
   success: boolean,
@@ -62,21 +63,24 @@ export function calculateNextReview(
   let interval = currentInterval;
   
   if (success) {
-    if (isNewWord) {
-      // 新词第一次答对：interval=3，EF+0.1
-      interval = 3;
-      ef = Math.min(25, ef + 1);
-    } else if (justFinishedPenalty) {
-      // 刚完成惩罚模式：interval=1（明天正常复习），EF不变
-      // 注意：EF的变化已经在第一次答错时处理了
+    if (justFinishedPenalty) {
+      // 惩罚模式完成：EF不变，interval=1
+      // 注意：EF在第一次答错时已经-0.2了
       interval = 1;
     } else {
-      // 正常复习答对：interval × EF，EF+0.1
-      interval = Math.ceil(interval * (ef / 10));
+      // 先更新EF（答对+0.1）
       ef = Math.min(25, ef + 1);
+      
+      if (isNewWord) {
+        // 新词第一次答对：interval固定为3
+        interval = 3;
+      } else {
+        // 正常复习答对：用新的EF计算interval
+        interval = Math.ceil(interval * (ef / 10));
+      }
     }
   } else {
-    // 答错：EF-0.2，interval=1（明天复习）
+    // 答错：EF-0.2，interval=1
     ef = Math.max(13, ef - 2);
     interval = 1;
   }
@@ -90,7 +94,6 @@ export function calculateNextReview(
   console.log('[calculateNextReview]', {
     success,
     isNewWord,
-    failureCount,
     justFinishedPenalty,
     currentEf: currentEf / 10,
     newEf: ef / 10,
