@@ -865,7 +865,12 @@ export function VocabAppContent() {
     else if (mode === 'spell') {
       // waiting 表示已完成默写结果的处理（正确或错误都算waiting）
       if (spellResult) {
-        // 已处理完，进入下一题
+        // 惩罚模式中答对但还没完成，继续输入同一个单词
+        if (spellResult.correct && spellResult.needMore) {
+          setSpellResult(null);  // 重置状态，让用户继续输入
+          return;
+        }
+        // 已完成（正确或错误），进入下一题
         nextCard(currentSessionWords, currentQueue);
       }
       // 否则不处理，由 onKeyDown 触发 checkSpelling

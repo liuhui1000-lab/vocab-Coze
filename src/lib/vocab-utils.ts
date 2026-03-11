@@ -71,7 +71,8 @@ export function calculateNextReview(
     interval = 1;
   }
   
-  const nextReview = new Date();
+  // 使用学习日基准时间，规范化为当天 00:00:00
+  const nextReview = getStudyDayDate();
   nextReview.setDate(nextReview.getDate() + interval);
   
   return { ef, interval, nextReview };
