@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { shuffleArray, playWord, calculateNextReview, formatDate, getStudyDayDate, isDueForReview, getStudyDayString, checkSpellingAnswerWithVariants } from '@/lib/vocab-utils';
+import { shuffleArray, playWord, calculateNextReview, formatDate, getStudyDayDate, isDueForReview, getStudyDayString, checkSpellingAnswer } from '@/lib/vocab-utils';
 import type { Semester, VocabWord, UserProgress, WordWithProgress, SessionWord } from '@/lib/types';
 
 // API helper functions
@@ -610,8 +610,8 @@ export function VocabAppContent() {
     
     const currentSessionWords = sessionWordsRef.current;
     const currentQueue = queueRef.current;
-    // 使用智能答案比对：支持多空格/多点的分隔符、括号内容可选、专有名词大小写检查
-    const isCorrect = checkSpellingAnswerWithVariants(input, currentWord.word);
+    // 使用智能答案比对：支持多空格/多点的分隔符、括号可选、专有名词大小写检查
+    const isCorrect = checkSpellingAnswer(input, currentWord.word);
     
     if (isCorrect) {
       // 播放发音

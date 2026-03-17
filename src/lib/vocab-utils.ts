@@ -149,83 +149,79 @@ export function playWord(word: string): void {
 
 // 智能答案比对函数
 // 规则：
-// 1. 多个点（...）或多个空格都视为单词分隔符，标准化为单个空格
-// 2. 括号内容（如 "(be)"）是可选的，有无都可
+// 1. 答案中的点（两个或以上）可以用空格代替，空格数量不限
+//    例：put...down → put...down, put..down, put down, put  down 都对
+// 2. 括号本身可选，但括号里的内容必须有
+//    例：(be) responsible for → be responsible for, (be) responsible for 都对
 // 3. 专有名词（首字母大写）必须大小写正确，其他单词忽略大小写
 export function checkSpellingAnswer(input: string, correctAnswer: string): boolean {
-  // 标准化输入和答案
-  const normalizedInput = normalizeAnswer(input);
-  const normalizedAnswer = normalizeAnswer(correctAnswer);
+  // 获取答案的所有可能正确形式
+  const variants = getAnswerVariants(correctAnswer);
   
-  // 检查是否是专有名词（首字母大写）
-  const isProperNoun = /^[A-Z]/.test(correctAnswer.trim());
+  // 标准化用户输入
+  const normalizedInput = normalizeInput(input);
   
-  if (isProperNoun) {
-    // 专有名词：大小写必须正确
-    return normalizedInput === normalizedAnswer;
-  } else {
-    // 普通单词：忽略大小写
-    return normalizedInput.toLowerCase() === normalizedAnswer.toLowerCase();
+  // 检查是否匹配任一变体
+  for (const variant of variants) {
+    const normalizedVariant = normalizeVariant(variant);
+    
+    // 检查是否是专有名词（首字母大写）
+    const isProperNoun = /^[A-Z]/.test(variant.trim());
+    
+    if (isProperNoun) {
+      // 专有名词：大小写必须正确
+      if (normalizedInput === normalizedVariant) {
+        return true;
+      }
+    } else {
+      // 普通单词：忽略大小写
+      if (normalizedInput.toLowerCase() === normalizedVariant.toLowerCase()) {
+        return true;
+      }
+    }
   }
+  
+  return false;
 }
 
-// 标准化答案字符串
-// 1. 将多个点（...）替换为单个空格
-// 2. 将多个空格替换为单个空格
-// 3. 处理括号内容（生成多个可能的答案）
-function normalizeAnswer(answer: string): string {
-  let normalized = answer.trim();
-  
-  // 移除全角括号和半角括号中的内容，但同时保留原内容（括号内容可选）
-  // 例如 "(be) responsible for" → ["be responsible for", "responsible for"]
-  // 我们生成两种形式，后面会处理
-  
-  // 将多个点（两个或以上）替换为单个空格
+// 标准化用户输入：将多个点或多个空格统一为单个空格
+function normalizeInput(input: string): string {
+  let normalized = input.trim();
+  // 将两个或以上的点替换为单个空格
   normalized = normalized.replace(/\.{2,}/g, ' ');
-  
   // 将多个空格替换为单个空格
   normalized = normalized.replace(/\s+/g, ' ');
-  
   return normalized.trim();
 }
 
-// 获取答案的所有可能正确形式（用于显示正确答案）
-export function getAnswerVariants(correctAnswer: string): string[] {
+// 标准化答案变体：只处理多个空格
+function normalizeVariant(variant: string): string {
+  let normalized = variant.trim();
+  // 将多个空格替换为单个空格
+  normalized = normalized.replace(/\s+/g, ' ');
+  return normalized.trim();
+}
+
+// 获取答案的所有可能正确形式
+// 1. 原始答案
+// 2. 去掉括号但保留内容的版本（如果答案中有括号）
+function getAnswerVariants(correctAnswer: string): string[] {
   const variants: string[] = [];
   const trimmed = correctAnswer.trim();
   
   // 添加原始答案
   variants.push(trimmed);
   
-  // 检查是否有括号内容
-  const bracketMatch = trimmed.match(/\(([^)]+)\)/);
-  if (bracketMatch) {
-    const bracketContent = bracketMatch[1];
-    const withoutBracket = trimmed.replace(/\([^)]+\)\s*/g, '').replace(/\s+/g, ' ').trim();
-    const withBracketContent = trimmed.replace(/[()]/g, '').replace(/\s+/g, ' ').trim();
-    
-    if (withoutBracket && !variants.includes(withoutBracket)) {
-      variants.push(withoutBracket);
-    }
-    if (withBracketContent && !variants.includes(withBracketContent)) {
-      variants.push(withBracketContent);
+  // 检查是否有括号：如果有，添加去掉括号的版本
+  if (/[()]/.test(trimmed)) {
+    // 去掉括号但保留内容
+    const withoutBrackets = trimmed.replace(/[()]/g, '').replace(/\s+/g, ' ').trim();
+    if (withoutBrackets && !variants.includes(withoutBrackets)) {
+      variants.push(withoutBrackets);
     }
   }
   
   return variants;
-}
-
-// 检查输入是否匹配任一正确答案形式
-export function checkSpellingAnswerWithVariants(input: string, correctAnswer: string): boolean {
-  const variants = getAnswerVariants(correctAnswer);
-  
-  for (const variant of variants) {
-    if (checkSpellingAnswer(input, variant)) {
-      return true;
-    }
-  }
-  
-  return false;
 }
 
 import type { WordWithProgress } from '@/lib/types';
