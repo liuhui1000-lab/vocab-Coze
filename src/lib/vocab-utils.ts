@@ -151,19 +151,21 @@ export function playWord(word: string): void {
 // 规则：
 // 1. 答案中的点（两个或以上）可以用空格代替，空格数量不限
 //    例：put...down → put...down, put..down, put down, put  down 都对
+//    但必须有分隔，putdown（无空格）算错
 // 2. 括号本身可选，但括号里的内容必须有
 //    例：(be) responsible for → be responsible for, (be) responsible for 都对
+//    但 responsible for（缺be）算错
 // 3. 专有名词（首字母大写）必须大小写正确，其他单词忽略大小写
 export function checkSpellingAnswer(input: string, correctAnswer: string): boolean {
   // 获取答案的所有可能正确形式
   const variants = getAnswerVariants(correctAnswer);
   
-  // 标准化用户输入
+  // 标准化用户输入（将多个点或多个空格统一为单个空格，但必须有分隔）
   const normalizedInput = normalizeInput(input);
   
   // 检查是否匹配任一变体
   for (const variant of variants) {
-    const normalizedVariant = normalizeVariant(variant);
+    const normalizedVariant = normalizeAnswer(variant);
     
     // 检查是否是专有名词（首字母大写）
     const isProperNoun = /^[A-Z]/.test(variant.trim());
@@ -184,19 +186,26 @@ export function checkSpellingAnswer(input: string, correctAnswer: string): boole
   return false;
 }
 
-// 标准化用户输入：将多个点或多个空格统一为单个空格
+// 标准化用户输入
+// 1. 将两个或以上的点替换为单个空格
+// 2. 将多个空格替换为单个空格
+// 3. 保留原有的分隔结构（不会凭空产生空格）
 function normalizeInput(input: string): string {
   let normalized = input.trim();
-  // 将两个或以上的点替换为单个空格
+  // 将两个或以上的点替换为单个空格（点表示分隔）
   normalized = normalized.replace(/\.{2,}/g, ' ');
   // 将多个空格替换为单个空格
   normalized = normalized.replace(/\s+/g, ' ');
   return normalized.trim();
 }
 
-// 标准化答案变体：只处理多个空格
-function normalizeVariant(variant: string): string {
-  let normalized = variant.trim();
+// 标准化答案（用于比对）
+// 1. 将两个或以上的点替换为单个空格
+// 2. 将多个空格替换为单个空格
+function normalizeAnswer(answer: string): string {
+  let normalized = answer.trim();
+  // 将两个或以上的点替换为单个空格
+  normalized = normalized.replace(/\.{2,}/g, ' ');
   // 将多个空格替换为单个空格
   normalized = normalized.replace(/\s+/g, ' ');
   return normalized.trim();
