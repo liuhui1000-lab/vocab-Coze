@@ -1255,54 +1255,60 @@ export function VocabAppContent() {
             {/* Spell input - 默写模式输入区 */}
             {isSpellMode && (
               <div className="w-full mt-4 space-y-3">
-                <input
-                  id="spell-input"
-                  key={`${currentWord?.id}-${currentWord?.penaltyProgress || 0}`}
-                  type="text"
-                  inputMode="text"
-                  autoComplete="off"
-                  autoCorrect="off"
-                  spellCheck="false"
-                  placeholder="输入单词"
-                  className={`w-full text-center text-2xl p-4 border-2 rounded-xl focus:border-indigo-500 outline-none transition-all ${
-                    spellResult && !spellResult.correct ? 'border-red-500 bg-red-50' : ''
-                  } ${
-                    spellResult && spellResult.correct ? 'border-green-500 bg-green-50' : ''
-                  }`}
-                  autoFocus
-                  disabled={spellResult?.correct !== undefined}
-                  onFocus={() => {
-                    // 键盘弹出时，等待一小会儿让键盘完全弹出，然后滚动到输入框
-                    setTimeout(() => {
-                      const input = document.getElementById('spell-input');
-                      input?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }, 100);
-                  }}
-                  onKeyDown={async (e) => {
-                    if (e.key === 'Enter' && !spellResult) {
-                      const input = e.target as HTMLInputElement;
-                      await handleSpellSubmit(input.value);
-                    }
-                  }}
-                />
-                
-                {/* 默写结果反馈 */}
-                {spellResult && !spellResult.correct && (
-                  <div className="text-center">
-                    <div className="text-red-500 font-medium text-lg error-shake">
-                      ✗ 正确答案: {currentWord.word}
+                {/* 惩罚模式答对但未完成：显示正确单词，提示点击继续 */}
+                {spellResult && spellResult.correct && spellResult.needMore ? (
+                  <>
+                    <div className="w-full text-center text-2xl p-4 border-2 border-green-500 bg-green-50 rounded-xl text-green-700 font-semibold">
+                      {currentWord.word}
                     </div>
-                  </div>
-                )}
-                {spellResult && spellResult.correct && spellResult.needMore && (
-                  <div className="text-center text-green-600 font-medium success-bounce">
-                    ✓ 正确！还需 {spellResult.needMore} 次巩固
-                  </div>
-                )}
-                {spellResult && spellResult.correct && spellResult.completed && (
-                  <div className="text-center text-green-600 font-medium text-lg success-bounce">
-                    ✓ 太棒了！已掌握
-                  </div>
+                    <div className="text-center text-green-600 font-medium success-bounce">
+                      ✓ 正确！还需 {spellResult.needMore} 次巩固
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <input
+                      id="spell-input"
+                      key={`${currentWord?.id}-${currentWord?.penaltyProgress || 0}`}
+                      type="text"
+                      inputMode="text"
+                      autoComplete="off"
+                      autoCorrect="off"
+                      spellCheck="false"
+                      placeholder="输入单词"
+                      className={`w-full text-center text-2xl p-4 border-2 rounded-xl focus:border-indigo-500 outline-none transition-all ${
+                        spellResult && !spellResult.correct ? 'border-red-500 bg-red-50' : ''
+                      }`}
+                      autoFocus
+                      disabled={spellResult?.correct !== undefined}
+                      onFocus={() => {
+                        setTimeout(() => {
+                          const input = document.getElementById('spell-input');
+                          input?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }, 100);
+                      }}
+                      onKeyDown={async (e) => {
+                        if (e.key === 'Enter' && !spellResult) {
+                          const input = e.target as HTMLInputElement;
+                          await handleSpellSubmit(input.value);
+                        }
+                      }}
+                    />
+                    
+                    {/* 默写结果反馈 */}
+                    {spellResult && !spellResult.correct && (
+                      <div className="text-center">
+                        <div className="text-red-500 font-medium text-lg error-shake">
+                          ✗ 正确答案: {currentWord.word}
+                        </div>
+                      </div>
+                    )}
+                    {spellResult && spellResult.correct && spellResult.completed && (
+                      <div className="text-center text-green-600 font-medium text-lg success-bounce">
+                        ✓ 太棒了！已掌握
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
