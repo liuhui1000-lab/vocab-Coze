@@ -14,6 +14,9 @@ interface Semester {
   id: number;
   name: string;
   slug: string;
+  description?: string | null;
+  order?: number;
+  is_active?: boolean;
   wordCount?: number;
 }
 
@@ -40,6 +43,13 @@ export default function AdminPage() {
   const [selectedSemester, setSelectedSemester] = useState<number | null>(null);
   const [vocabJson, setVocabJson] = useState('');
   const [clearExisting, setClearExisting] = useState(false);
+  const [showCreateSemester, setShowCreateSemester] = useState(false);
+  const [editingSemester, setEditingSemester] = useState<Semester | null>(null);
+  const [semesterForm, setSemesterForm] = useState({
+    name: '',
+    slug: '',
+    description: ''
+  });
   
   // 单词列表管理
   const [words, setWords] = useState<Word[]>([]);
@@ -425,6 +435,123 @@ export default function AdminPage() {
     setLoading(false);
   };
 
+  // ==================== 分类管理 ====================
+  const resetSemesterForm = () => {
+    setSemesterForm({ name: '', slug: '', description: '' });
+    setShowCreateSemester(false);
+    setEditingSemester(null);
+  };
+
+  const handleCreateSemester = async () => {
+    if (!semesterForm.name.trim()) {
+      showMessage('error', '请输入分类名称');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const res = await fetch('/api/admin/semesters', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adminUsername: currentUser!.username,
+          name: semesterForm.name.trim(),
+          slug: semesterForm.slug.trim() || undefined,
+          description: semesterForm.description.trim() || undefined
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        showMessage('success', '分类创建成功');
+        resetSemesterForm();
+        loadSemesters();
+      } else {
+        showMessage('error', data.error || '创建失败');
+      }
+    } catch (e) {
+      showMessage('error', '网络错误');
+    }
+
+    setLoading(false);
+  };
+
+  const handleUpdateSemester = async () => {
+    if (!editingSemester) return;
+    if (!semesterForm.name.trim()) {
+      showMessage('error', '请输入分类名称');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const res = await fetch('/api/admin/semesters', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adminUsername: currentUser!.username,
+          id: editingSemester.id,
+          name: semesterForm.name.trim(),
+          slug: semesterForm.slug.trim() || undefined,
+          description: semesterForm.description.trim() || undefined
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        showMessage('success', '分类已更新');
+        resetSemesterForm();
+        loadSemesters();
+      } else {
+        showMessage('error', data.error || '更新失败');
+      }
+    } catch (e) {
+      showMessage('error', '网络错误');
+    }
+
+    setLoading(false);
+  };
+
+  const openEditSemester = (semester: Semester) => {
+    setEditingSemester(semester);
+    setShowCreateSemester(false);
+    setSemesterForm({
+      name: semester.name,
+      slug: semester.slug || '',
+      description: semester.description || ''
+    });
+  };
+
+  const handleDeleteSemester = async (semesterId: number, semesterName: string) => {
+    if (!confirm(`确定删除分类 "${semesterName}"？该分类下的单词、学习进度和统计都会删除，但不会删除任何用户账号。此操作不可恢复！`)) return;
+
+    try {
+      const res = await fetch(`/api/admin/semesters?adminUsername=${encodeURIComponent(currentUser!.username)}&id=${semesterId}`, {
+        method: 'DELETE',
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        showMessage('success', '分类已删除');
+        if (selectedSemester === semesterId) setSelectedSemester(null);
+        if (selectedWordSemester === semesterId) {
+          setSelectedWordSemester(null);
+          setWords([]);
+        }
+        loadSemesters();
+      } else {
+        showMessage('error', data.error || '删除失败');
+      }
+    } catch (e) {
+      showMessage('error', '网络错误');
+    }
+  };
+
   // ==================== 用户管理 ====================
   
   // 创建新用户
@@ -716,20 +843,49 @@ export default function AdminPage() {
           <div className="space-y-6">
             {/* 分类列表 */}
             <div className="bg-white rounded-xl shadow p-6">
-              <h2 className="text-lg font-bold mb-4">📁 现有分类</h2>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                <h2 className="text-lg font-bold">📁 分类管理</h2>
+                <button
+                  onClick={() => {
+                    setShowCreateSemester(true);
+                    setEditingSemester(null);
+                    setSemesterForm({ name: '', slug: '', description: '' });
+                  }}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+                >
+                  + 新增分类
+                </button>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {semesters.map(s => (
-                  <div key={s.id} className="border rounded-lg p-4 flex items-center justify-between">
+                  <div key={s.id} className="border rounded-lg p-4">
                     <div>
                       <div className="font-medium text-lg">{s.name}</div>
-                      <div className="text-sm text-gray-500">{s.wordCount || 0} 个单词</div>
+                      {s.description && (
+                        <div className="text-sm text-gray-500 mt-1">{s.description}</div>
+                      )}
+                      <div className="text-sm text-gray-500 mt-1">{s.wordCount || 0} 个单词</div>
                     </div>
-                    <button
-                      onClick={() => handleDeleteVocab(s.id, s.name)}
-                      className="px-3 py-1 text-red-500 hover:bg-red-50 rounded text-sm"
-                    >
-                      清空
-                    </button>
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      <button
+                        onClick={() => openEditSemester(s)}
+                        className="px-3 py-1 text-blue-500 hover:bg-blue-50 rounded text-sm"
+                      >
+                        编辑
+                      </button>
+                      <button
+                        onClick={() => handleDeleteVocab(s.id, s.name)}
+                        className="px-3 py-1 text-amber-600 hover:bg-amber-50 rounded text-sm"
+                      >
+                        清空单词
+                      </button>
+                      <button
+                        onClick={() => handleDeleteSemester(s.id, s.name)}
+                        className="px-3 py-1 text-red-500 hover:bg-red-50 rounded text-sm"
+                      >
+                        删除分类
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1032,6 +1188,68 @@ export default function AdminPage() {
           </div>
         )}
       </div>
+
+      {/* ==================== 创建/编辑分类弹窗 ==================== */}
+      {(showCreateSemester || editingSemester) && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md">
+            <h3 className="text-lg font-bold mb-4">
+              {editingSemester ? '编辑分类' : '新增分类'}
+            </h3>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">分类名称 *</label>
+                <input
+                  type="text"
+                  value={semesterForm.name}
+                  onChange={(e) => setSemesterForm({ ...semesterForm, name: e.target.value })}
+                  placeholder="例如：中考高频词、校本词汇"
+                  className="w-full p-3 border rounded-lg"
+                  maxLength={30}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">标识 slug（可选）</label>
+                <input
+                  type="text"
+                  value={semesterForm.slug}
+                  onChange={(e) => setSemesterForm({ ...semesterForm, slug: e.target.value })}
+                  placeholder="留空会自动生成"
+                  className="w-full p-3 border rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">描述（可选）</label>
+                <input
+                  type="text"
+                  value={semesterForm.description}
+                  onChange={(e) => setSemesterForm({ ...semesterForm, description: e.target.value })}
+                  placeholder="这个分类用于什么词库"
+                  className="w-full p-3 border rounded-lg"
+                  maxLength={80}
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={resetSemesterForm}
+                className="flex-1 py-2 border rounded-lg hover:bg-gray-50"
+              >
+                取消
+              </button>
+              <button
+                onClick={editingSemester ? handleUpdateSemester : handleCreateSemester}
+                disabled={loading}
+                className="flex-1 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
+              >
+                {loading ? '保存中...' : '保存'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ==================== 创建用户弹窗 ==================== */}
       {showCreateUser && (

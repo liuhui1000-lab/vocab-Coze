@@ -265,7 +265,7 @@ export async function PUT(request: Request) {
 export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const adminUsername = searchParams.get('admin');
+    const adminUsername = searchParams.get('admin') || searchParams.get('adminUsername');
     const targetUserId = searchParams.get('userId');
 
     if (!adminUsername || !targetUserId) {
@@ -289,10 +289,24 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: '不能删除自己的账户' }, { status: 400 });
     }
 
-    // 删除用户进度
-    await db
-      .prepare('DELETE FROM user_progress WHERE username = (SELECT username FROM users WHERE id = ?)')
+    const targetUser = await db
+      .prepare('SELECT username FROM users WHERE id = ?')
       .bind(parseInt(targetUserId))
+      .first();
+
+    if (!targetUser) {
+      return NextResponse.json({ error: '用户不存在' }, { status: 404 });
+    }
+
+    // 删除该用户的学习进度和统计，不影响任何单词库
+    await db
+      .prepare('DELETE FROM user_progress WHERE username = ?')
+      .bind((targetUser as any).username)
+      .run();
+
+    await db
+      .prepare('DELETE FROM study_stats WHERE username = ?')
+      .bind((targetUser as any).username)
       .run();
 
     // 删除用户

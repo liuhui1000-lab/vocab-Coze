@@ -1026,7 +1026,7 @@ export function VocabAppContent() {
           {/* Semester selection - 紧凑2列网格 */}
           <div className="bg-white rounded-xl p-3 shadow-sm border border-indigo-100">
             <h2 className="font-semibold text-indigo-700 mb-2 text-sm">选择分类</h2>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[320px] overflow-y-auto pr-1">
               {semesters.map(semester => {
                 const isSelected = selectedSemesterIds.includes(semester.id);
                 const wordCount = allWords.filter(w => w.semester_id === semester.id).length;

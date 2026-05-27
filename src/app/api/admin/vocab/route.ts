@@ -52,6 +52,11 @@ export async function POST(request: Request) {
     // 如果需要，清空现有单词
     if (clearExisting) {
       await db
+        .prepare('DELETE FROM study_stats WHERE semester_id = ?')
+        .bind(semesterId)
+        .run();
+
+      await db
         .prepare('DELETE FROM user_progress WHERE semester_id = ?')
         .bind(semesterId)
         .run();
@@ -181,7 +186,12 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: adminCheck.error }, { status: 403 });
     }
 
-    // 先删除相关进度
+    // 只清理该分类对应的单词库数据和关联学习记录，不删除用户账号
+    await db
+      .prepare('DELETE FROM study_stats WHERE semester_id = ?')
+      .bind(parseInt(semesterId))
+      .run();
+
     await db
       .prepare('DELETE FROM user_progress WHERE semester_id = ?')
       .bind(parseInt(semesterId))

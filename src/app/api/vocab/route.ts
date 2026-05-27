@@ -31,7 +31,11 @@ export async function POST(request: Request) {
 
     // 如果需要，清空现有单词
     if (clearExisting) {
-      // 先删除相关进度
+      await db
+        .prepare('DELETE FROM study_stats WHERE semester_id = ?')
+        .bind(semesterId)
+        .run();
+
       await db
         .prepare('DELETE FROM user_progress WHERE semester_id = ?')
         .bind(semesterId)
@@ -156,7 +160,12 @@ export async function DELETE(request: Request) {
 
     const db = getDB();
 
-    // 先删除相关进度
+    // 只清理该分类对应的单词库数据和关联学习记录，不删除用户账号
+    await db
+      .prepare('DELETE FROM study_stats WHERE semester_id = ?')
+      .bind(parseInt(semesterId))
+      .run();
+
     await db
       .prepare('DELETE FROM user_progress WHERE semester_id = ?')
       .bind(parseInt(semesterId))
