@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getDB } from '@/lib/db-helpers';
 
+type SemesterRecord = Record<string, unknown> & {
+  is_active?: number | boolean;
+};
+
 async function checkAdmin(db: any, username: string): Promise<{ success: boolean; error?: string }> {
   const user = await db
     .prepare('SELECT is_admin FROM users WHERE username = ?')
@@ -38,6 +42,13 @@ async function makeUniqueSlug(db: any, baseSlug: string, excludeId?: number): Pr
     slug = `${base}-${suffix}`;
     suffix += 1;
   }
+}
+
+function serializeSemester(semester: SemesterRecord) {
+  return {
+    ...semester,
+    is_active: semester.is_active === 1 || semester.is_active === true
+  };
 }
 
 export async function POST(request: Request) {
@@ -78,12 +89,13 @@ export async function POST(request: Request) {
       .bind(trimmedName, uniqueSlug, rawDescription || null, nextOrder)
       .first();
 
+    if (!semester) {
+      return NextResponse.json({ error: '分类创建失败' }, { status: 500 });
+    }
+
     return NextResponse.json({
       success: true,
-      semester: {
-        ...semester,
-        is_active: (semester as any).is_active === 1
-      }
+      semester: serializeSemester(semester as SemesterRecord)
     });
   } catch (error) {
     console.error('Error creating semester:', error);
@@ -156,12 +168,13 @@ export async function PUT(request: Request) {
       .bind(...params, id)
       .first();
 
+    if (!semester) {
+      return NextResponse.json({ error: '分类更新失败' }, { status: 500 });
+    }
+
     return NextResponse.json({
       success: true,
-      semester: {
-        ...semester,
-        is_active: (semester as any).is_active === 1
-      }
+      semester: serializeSemester(semester as SemesterRecord)
     });
   } catch (error) {
     console.error('Error updating semester:', error);
