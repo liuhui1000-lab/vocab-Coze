@@ -13,7 +13,7 @@ fi
 echo "Building with OpenNext for Cloudflare Pages..."
 cd "${COZE_WORKSPACE_PATH:-$(pwd)}"
 export OPENNEXT_BUILD=1
-pnpm opennextjs-cloudflare build
+npx opennextjs-cloudflare build
 
 # 重命名 worker.js 为 _worker.js（Cloudflare Pages 入口文件名要求）
 # 同时删除原始文件避免重复
