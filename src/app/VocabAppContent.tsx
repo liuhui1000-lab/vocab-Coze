@@ -21,13 +21,13 @@ async function fetchProgress(username: string, semesterIds: number[]) {
   return data.progress as UserProgress[];
 }
 
-async function saveProgress(username: string, progress: any[]) {
-  console.log('[saveProgress] 保存进度:', { username, count: progress.length, progress });
+async function saveProgress(username: string, progress: any[], statsUpdates?: any[]) {
+  console.log('[saveProgress] 保存进度:', { username, count: progress.length, progress, statsUpdates });
   try {
     const res = await fetch('/api/progress', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, progress }),
+      body: JSON.stringify({ username, progress, statsUpdates }),
     });
     const data = await res.json();
     console.log('[saveProgress] 响应:', data);
@@ -39,19 +39,6 @@ async function saveProgress(username: string, progress: any[]) {
     console.error('[saveProgress] 请求错误:', error);
     throw error;
   }
-}
-
-async function recordStat(username: string, semesterId: number, type: 'new' | 'review') {
-  await fetch('/api/stats', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ 
-      username, 
-      semesterId, 
-      date: getStudyDayString(), // 使用凌晨4点分界的日期
-      type 
-    }),
-  });
 }
 
 async function initSampleData() {
@@ -100,6 +87,48 @@ export function VocabAppContent() {
   const queueRef = useRef<SessionWord[]>([]);
   const [currentWord, setCurrentWord] = useState<SessionWord | null>(null);
   const currentWordRef = useRef<SessionWord | null>(null);  // 添加 currentWord ref
+
+  // 学习统计本地缓存和防重记录
+  const unsavedStatsRef = useRef<{ [semesterId: number]: { newCount: number; reviewCount: number } }>({});
+  const recordedWordIdsRef = useRef<Set<number>>(new Set());
+
+  // 累加本地统计数据并同步写入 localStorage
+  const incrementLocalStat = useCallback((semesterId: number, type: 'new' | 'review') => {
+    if (!unsavedStatsRef.current[semesterId]) {
+      unsavedStatsRef.current[semesterId] = { newCount: 0, reviewCount: 0 };
+    }
+    if (type === 'new') {
+      unsavedStatsRef.current[semesterId].newCount += 1;
+    } else {
+      unsavedStatsRef.current[semesterId].reviewCount += 1;
+    }
+    try {
+      localStorage.setItem('vocab_unsaved_stats', JSON.stringify(unsavedStatsRef.current));
+    } catch (e) {
+      console.error('Failed to sync unsaved stats to localStorage:', e);
+    }
+  }, []);
+
+  // 获取当前的统计更新列表
+  const getStatsUpdates = useCallback(() => {
+    return Object.entries(unsavedStatsRef.current).map(([semId, counts]) => ({
+      semesterId: parseInt(semId),
+      date: getStudyDayString(),
+      newCount: counts.newCount,
+      reviewCount: counts.reviewCount
+    })).filter(update => update.newCount > 0 || update.reviewCount > 0);
+  }, []);
+
+  // 清理本地及 localStorage 中的统计缓存
+  const clearStatsUpdates = useCallback(() => {
+    unsavedStatsRef.current = {};
+    try {
+      localStorage.removeItem('vocab_unsaved_stats');
+    } catch (e) {
+      console.error('Failed to clear stats in localStorage:', e);
+    }
+  }, []);
+
   const [mode, setMode] = useState<'learn' | 'quiz' | 'spell'>('learn');
   const [options, setOptions] = useState<string[]>([]);
   const [showAnswer, setShowAnswer] = useState(false);
@@ -203,6 +232,47 @@ export function VocabAppContent() {
     }
     setIsCheckingAuth(false);
   }, []);
+
+  // 启动/登录时，同步 localStorage 中可能残留的未提交统计数据
+  useEffect(() => {
+    async function syncUnsavedStats() {
+      if (isLoggedIn && username) {
+        try {
+          const savedStatsStr = localStorage.getItem('vocab_unsaved_stats');
+          if (savedStatsStr) {
+            const savedStats = JSON.parse(savedStatsStr);
+            const statsUpdates = Object.entries(savedStats).map(([semId, counts]: [string, any]) => ({
+              semesterId: parseInt(semId),
+              date: getStudyDayString(),
+              newCount: counts.newCount || 0,
+              reviewCount: counts.reviewCount || 0
+            })).filter(update => update.newCount > 0 || update.reviewCount > 0);
+
+            if (statsUpdates.length > 0) {
+              console.log('[Init Sync] 检测到本地有未上报的统计，开始补录:', statsUpdates);
+              const res = await fetch('/api/progress', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, progress: [], statsUpdates }),
+              });
+              if (res.ok) {
+                localStorage.removeItem('vocab_unsaved_stats');
+                console.log('[Init Sync] 本地残留统计数据补录成功');
+              } else {
+                console.error('[Init Sync] 本地残留统计数据补录失败');
+              }
+            } else {
+              localStorage.removeItem('vocab_unsaved_stats');
+            }
+          }
+        } catch (e) {
+          console.error('[Init Sync] 解析本地残留统计数据失败:', e);
+          localStorage.removeItem('vocab_unsaved_stats');
+        }
+      }
+    }
+    syncUnsavedStats();
+  }, [isLoggedIn, username]);
 
   // 加载学期数据
   useEffect(() => {
@@ -366,6 +436,9 @@ export function VocabAppContent() {
       alert('请先选择分类！');
       return;
     }
+
+    // 重置本轮会话已记录统计的单词 ID 集合
+    recordedWordIdsRef.current = new Set();
 
     setSessionType(type);
 
@@ -644,7 +717,6 @@ export function VocabAppContent() {
           setSpellResult({ correct: true, completed: true });
           // 刚完成惩罚模式：interval=1（明天正常复习），EF不变
           await updateWordState(currentWord, true, true);
-          await recordStat(username, currentWord.semester_id, 'review');
           return { correct: true, completed: true, updatedSessionWords: updated };
         } else {
           // HTML: document.getElementById('next-btn').textContent = `正确！还需 ${3 - this.currentCard.penaltyProgress} 次巩固 →`;
@@ -684,7 +756,6 @@ export function VocabAppContent() {
         setCurrentWord({ ...currentWord, tempStep: 2 });
         setSpellResult({ correct: true, completed: true });
         await updateWordState(currentWord, true);
-        await recordStat(username, currentWord.semester_id, currentWord.isNewThisSession ? 'new' : 'review');
         return { correct: true, completed: true, updatedSessionWords: updated };
       }
     } else {
@@ -736,6 +807,29 @@ export function VocabAppContent() {
       wordInPenalty: word.inPenalty,
       justFinishedPenalty
     });
+
+    // 判定并记录本地统计缓存
+    const wordId = word.id;
+    if (!recordedWordIdsRef.current.has(wordId)) {
+      recordedWordIdsRef.current.add(wordId);
+      if (word.isNewThisSession) {
+        if (success) {
+          // 新词第一次交互，且成功了：计为新词
+          incrementLocalStat(word.semester_id, 'new');
+        } else {
+          // 新词第一次交互，但失败了：先不记，等惩罚毕业再记为复习词
+        }
+      } else {
+        // 老词首次交互（无论对错）：计为复习词
+        incrementLocalStat(word.semester_id, 'review');
+      }
+    } else {
+      // 已经记录过该词（可能是新词刚才答错，现在惩罚模式通关）
+      if (word.isNewThisSession && success && justFinishedPenalty) {
+        // 新词在惩罚模式下通关毕业：计为复习词
+        incrementLocalStat(word.semester_id, 'review');
+      }
+    }
     
     const { ef, interval, nextReview } = calculateNextReview(
       success, 
@@ -802,7 +896,11 @@ export function VocabAppContent() {
     
     // 使用 ref 检查，确保使用最新值
     if (newCount >= 4) {
-      await saveProgress(username, [progressUpdate]);
+      const statsUpdates = getStatsUpdates();
+      const result = await saveProgress(username, [progressUpdate], statsUpdates);
+      if (result && result.success) {
+        clearStatsUpdates();
+      }
       setUnsavedCount(0);
       unsavedCountRef.current = 0;
     }
@@ -838,14 +936,18 @@ export function VocabAppContent() {
     
     console.log('[finishSession] progressToSave:', progressToSave);
     
-    if (progressToSave.length > 0) {
-      console.log('[finishSession] 调用 saveProgress');
-      const result = await saveProgress(username, progressToSave);
+    const statsUpdates = getStatsUpdates();
+    if (progressToSave.length > 0 || statsUpdates.length > 0) {
+      console.log('[finishSession] 调用 saveProgress', { progressCount: progressToSave.length, statsUpdatesCount: statsUpdates.length });
+      const result = await saveProgress(username, progressToSave, statsUpdates);
       console.log('[finishSession] saveProgress 结果:', result);
+      if (result && result.success) {
+        clearStatsUpdates();
+      }
       setUnsavedCount(0);
       unsavedCountRef.current = 0;
     } else {
-      console.log('[finishSession] 没有进度需要保存');
+      console.log('[finishSession] 没有进度或统计需要保存');
     }
 
     if (selectedSemesterIds.length > 0) {

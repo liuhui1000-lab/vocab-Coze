@@ -46,12 +46,14 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { username, progress } = body;
+    const { username, progress, statsUpdates } = body;
 
     console.log('[API /progress POST] 收到请求:', { 
       username, 
       progressCount: progress?.length,
-      progress 
+      statsUpdatesCount: statsUpdates?.length,
+      progress,
+      statsUpdates
     });
 
     if (!username || !progress || !Array.isArray(progress)) {
@@ -63,6 +65,7 @@ export async function POST(request: Request) {
     const results = [];
     const errors = [];
 
+    // 1. 保存单词进度
     for (const item of progress) {
       try {
         console.log('[API /progress POST] 保存项目:', item);
@@ -101,6 +104,38 @@ export async function POST(request: Request) {
           : { raw: String(err) };
         console.error('[API /progress POST] 保存错误:', errorDetails);
         errors.push({ wordId: item.wordId, item, error: errorDetails });
+      }
+    }
+
+    // 2. 批量更新学习统计表
+    if (statsUpdates && Array.isArray(statsUpdates)) {
+      for (const stat of statsUpdates) {
+        try {
+          console.log('[API /progress POST] 更新统计:', stat);
+          
+          await db
+            .prepare(`
+              INSERT INTO study_stats (username, semester_id, date, new_count, review_count)
+              VALUES (?, ?, ?, ?, ?)
+              ON CONFLICT(username, semester_id, date) DO UPDATE SET
+                new_count = new_count + excluded.new_count,
+                review_count = review_count + excluded.review_count
+            `)
+            .bind(
+              username,
+              stat.semesterId,
+              stat.date,
+              stat.newCount || 0,
+              stat.reviewCount || 0
+            )
+            .run();
+        } catch (err) {
+          const errorDetails = err instanceof Error 
+            ? { message: err.message, stack: err.stack, name: err.name }
+            : { raw: String(err) };
+          console.error('[API /progress POST] 更新统计错误:', errorDetails, stat);
+          errors.push({ type: 'stats', stat, error: errorDetails });
+        }
       }
     }
 
