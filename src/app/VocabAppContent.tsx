@@ -91,6 +91,7 @@ export function VocabAppContent() {
   // 学习统计本地缓存和防重记录
   const unsavedStatsRef = useRef<{ [semesterId: number]: { newCount: number; reviewCount: number } }>({});
   const recordedWordIdsRef = useRef<Set<number>>(new Set());
+  const isSavingRef = useRef(false);
 
   // 累加本地统计数据并同步写入 localStorage
   const incrementLocalStat = useCallback((semesterId: number, type: 'new' | 'review') => {
@@ -240,6 +241,9 @@ export function VocabAppContent() {
         try {
           const savedStatsStr = localStorage.getItem('vocab_unsaved_stats');
           if (savedStatsStr) {
+            // 立即从 localStorage 中移除，防止 React 18 双挂载 (Double-mount) 引起的并发双发请求
+            localStorage.removeItem('vocab_unsaved_stats');
+
             const savedStats = JSON.parse(savedStatsStr);
             const statsUpdates = Object.entries(savedStats).map(([semId, counts]: [string, any]) => ({
               semesterId: parseInt(semId),
@@ -256,18 +260,18 @@ export function VocabAppContent() {
                 body: JSON.stringify({ username, progress: [], statsUpdates }),
               });
               if (res.ok) {
-                localStorage.removeItem('vocab_unsaved_stats');
                 console.log('[Init Sync] 本地残留统计数据补录成功');
               } else {
-                console.error('[Init Sync] 本地残留统计数据补录失败');
+                console.error('[Init Sync] 本地残留统计数据补录失败，尝试恢复本地缓存');
+                // 如果失败且本地没有新的统计写入，则把旧的数据恢复回去
+                if (!localStorage.getItem('vocab_unsaved_stats')) {
+                  localStorage.setItem('vocab_unsaved_stats', savedStatsStr);
+                }
               }
-            } else {
-              localStorage.removeItem('vocab_unsaved_stats');
             }
           }
         } catch (e) {
           console.error('[Init Sync] 解析本地残留统计数据失败:', e);
-          localStorage.removeItem('vocab_unsaved_stats');
         }
       }
     }
@@ -896,17 +900,29 @@ export function VocabAppContent() {
     
     // 使用 ref 检查，确保使用最新值
     if (newCount >= 4) {
-      const statsUpdates = getStatsUpdates();
-      const result = await saveProgress(username, [progressUpdate], statsUpdates);
-      if (result && result.success) {
-        clearStatsUpdates();
-      }
+      // 1. 同步清空进度计数，防止在 await 期间再次触发 saveProgress
       setUnsavedCount(0);
       unsavedCountRef.current = 0;
+
+      // 2. 提取并同步清空统计缓存，防止在 await 期间重复提交统计
+      const statsUpdates = getStatsUpdates();
+      clearStatsUpdates();
+
+      try {
+        const result = await saveProgress(username, [progressUpdate], statsUpdates);
+        if (!result || !result.success) {
+          console.error('[updateWordState] saveProgress failed');
+        }
+      } catch (e) {
+        console.error('[updateWordState] saveProgress error', e);
+      }
     }
   };
 
   const finishSession = async () => {
+    if (isSavingRef.current) return;
+    isSavingRef.current = true;
+
     // 使用 ref 获取最新的 sessionWords 数据
     const currentSessionWords = sessionWordsRef.current;
     
@@ -937,30 +953,35 @@ export function VocabAppContent() {
     console.log('[finishSession] progressToSave:', progressToSave);
     
     const statsUpdates = getStatsUpdates();
-    if (progressToSave.length > 0 || statsUpdates.length > 0) {
-      console.log('[finishSession] 调用 saveProgress', { progressCount: progressToSave.length, statsUpdatesCount: statsUpdates.length });
-      const result = await saveProgress(username, progressToSave, statsUpdates);
-      console.log('[finishSession] saveProgress 结果:', result);
-      if (result && result.success) {
-        clearStatsUpdates();
+
+    // 同步清空，防止重入或后续重复保存
+    clearStatsUpdates();
+    setUnsavedCount(0);
+    unsavedCountRef.current = 0;
+
+    try {
+      if (progressToSave.length > 0 || statsUpdates.length > 0) {
+        console.log('[finishSession] 调用 saveProgress', { progressCount: progressToSave.length, statsUpdatesCount: statsUpdates.length });
+        const result = await saveProgress(username, progressToSave, statsUpdates);
+        console.log('[finishSession] saveProgress 结果:', result);
+      } else {
+        console.log('[finishSession] 没有进度或统计需要保存');
       }
-      setUnsavedCount(0);
-      unsavedCountRef.current = 0;
-    } else {
-      console.log('[finishSession] 没有进度或统计需要保存');
+    } catch (e) {
+      console.error('[finishSession] saveProgress error', e);
+    } finally {
+      isSavingRef.current = false;
+      if (selectedSemesterIds.length > 0) {
+        const progressData = await fetchProgress(username, selectedSemesterIds);
+        const progressMap = new Map(progressData.map(p => [p.word_id, p]));
+        const wordsWithProgress = allWords.map(w => ({
+          ...w,
+          progress: progressMap.get(w.id),
+        }));
+        setAllWords(wordsWithProgress);
+      }
+      setCurrentView('finish');
     }
-
-    if (selectedSemesterIds.length > 0) {
-      const progressData = await fetchProgress(username, selectedSemesterIds);
-      const progressMap = new Map(progressData.map(p => [p.word_id, p]));
-      const wordsWithProgress = allWords.map(w => ({
-        ...w,
-        progress: progressMap.get(w.id),
-      }));
-      setAllWords(wordsWithProgress);
-    }
-
-    setCurrentView('finish');
   };
 
   // handleNext - 完全沿用HTML逻辑
