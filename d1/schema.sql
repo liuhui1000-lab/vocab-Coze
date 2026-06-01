@@ -84,6 +84,7 @@ CREATE TABLE IF NOT EXISTS study_stats (
 
 CREATE INDEX IF NOT EXISTS idx_stats_username ON study_stats(username);
 CREATE INDEX IF NOT EXISTS idx_stats_date ON study_stats(date);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_stats_username_semester_date ON study_stats(username, semester_id, date);
 
 -- ============================================
 -- 初始数据：插入默认分类（6个学期）

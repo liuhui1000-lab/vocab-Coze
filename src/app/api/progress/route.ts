@@ -113,22 +113,38 @@ export async function POST(request: Request) {
         try {
           console.log('[API /progress POST] 更新统计:', stat);
           
-          await db
+          // 尝试更新已有的统计记录
+          const updateResult = await db
             .prepare(`
-              INSERT INTO study_stats (username, semester_id, date, new_count, review_count)
-              VALUES (?, ?, ?, ?, ?)
-              ON CONFLICT(username, semester_id, date) DO UPDATE SET
-                new_count = new_count + excluded.new_count,
-                review_count = review_count + excluded.review_count
+              UPDATE study_stats 
+              SET new_count = new_count + ?, review_count = review_count + ? 
+              WHERE username = ? AND semester_id = ? AND date = ?
             `)
             .bind(
+              stat.newCount || 0,
+              stat.reviewCount || 0,
               username,
               stat.semesterId,
-              stat.date,
-              stat.newCount || 0,
-              stat.reviewCount || 0
+              stat.date
             )
             .run();
+
+          // 如果更新影响的行数为 0，说明当天没有该学期的记录，执行插入
+          if (!updateResult.meta?.changes || updateResult.meta.changes === 0) {
+            await db
+              .prepare(`
+                INSERT INTO study_stats (username, semester_id, date, new_count, review_count)
+                VALUES (?, ?, ?, ?, ?)
+              `)
+              .bind(
+                username,
+                stat.semesterId,
+                stat.date,
+                stat.newCount || 0,
+                stat.reviewCount || 0
+              )
+              .run();
+          }
         } catch (err) {
           const errorDetails = err instanceof Error 
             ? { message: err.message, stack: err.stack, name: err.name }
@@ -141,11 +157,19 @@ export async function POST(request: Request) {
 
     console.log('[API /progress POST] 完成:', { saved: results.length, errors: errors.length });
     
+    if (errors.length > 0) {
+      return NextResponse.json({ 
+        success: false, 
+        saved: results.length,
+        results,
+        errors
+      }, { status: 500 });
+    }
+
     return NextResponse.json({ 
       success: true, 
       saved: results.length,
-      results,
-      errors: errors.length > 0 ? errors : undefined
+      results
     });
   } catch (error) {
     console.error('[API /progress POST] 全局错误:', error);
