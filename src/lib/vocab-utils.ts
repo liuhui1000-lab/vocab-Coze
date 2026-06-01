@@ -64,8 +64,8 @@ export function calculateNextReview(
   
   if (success) {
     if (justFinishedPenalty) {
-      // 惩罚模式完成：EF不变，interval=1
-      // 注意：EF在第一次答错时已经-0.2了
+      // 惩罚模式完成：最初答错了，所以 EF -0.2（内部 -2），最低 1.3；interval 固定为 1
+      ef = Math.max(13, ef - 2);
       interval = 1;
     } else {
       // 先更新EF（答对+0.1）

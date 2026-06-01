@@ -900,7 +900,6 @@ export function VocabAppContent() {
       queueRef.current = updatedQueue;
       
       setCurrentWord({ ...currentWord, tempStep: 0, inPenalty: true, penaltyProgress: 0 });
-      await updateWordState(currentWord, false);
     }
   };
 
@@ -1016,7 +1015,6 @@ export function VocabAppContent() {
       
       setCurrentWord({ ...currentWord, tempStep: 0, inPenalty: true, penaltyProgress: 0 });
       setSpellResult({ correct: false });
-      await updateWordState(currentWord, false);
       return { correct: false, updatedSessionWords: updated };
     }
   };
@@ -1078,8 +1076,8 @@ export function VocabAppContent() {
     // HTML: w.state = success ? 'review' : 'learning'
     const newState = success ? 'review' : 'learning' as 'review' | 'learning';
     
-    // 更新failureCount：答错+1，答对保持（学霸词保持0）
-    const newFailureCount = success ? currentFailureCount : currentFailureCount + 1;
+    // 更新failureCount：答错或刚完成惩罚模式时+1，直接答对时保持
+    const newFailureCount = (justFinishedPenalty || !success) ? currentFailureCount + 1 : currentFailureCount;
     
     const progressUpdate = {
       wordId: word.id,
@@ -1090,7 +1088,7 @@ export function VocabAppContent() {
       interval,
       failureCount: newFailureCount,
       penaltyProgress: 0,
-      inPenalty: !success,
+      inPenalty: !success && !justFinishedPenalty,
     };
 
     // 缓存本地进度到 localStorage，防止刷新/强退丢失进度
