@@ -28,6 +28,7 @@ async function saveProgress(username: string, progress: any[], statsUpdates?: an
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, progress, statsUpdates }),
+      keepalive: true, // 确保页面切后台/卸载时请求能安全送达
     });
     const data = await res.json();
     console.log('[saveProgress] 响应:', data);
@@ -506,6 +507,46 @@ export function VocabAppContent() {
     }
     syncUnsavedData();
   }, [isLoggedIn, username]);
+
+  // 监听页面可见性变化，当网页切后台、手机锁屏、切换应用时立即将本地未上报数据同步至服务器
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'hidden' && isLoggedIn && username) {
+        const progressList = getUnsavedProgressList();
+        const statsUpdates = getStatsUpdates();
+
+        if (progressList.length > 0 || statsUpdates.length > 0) {
+          console.log('[Visibility] 页面切入后台，开始同步未保存数据:', { progressCount: progressList.length, statsUpdatesCount: statsUpdates.length });
+          
+          // 备份以防发送失败
+          const backupProgressStr = JSON.stringify(unsavedProgressRef.current);
+          const backupStatsStr = JSON.stringify(unsavedStatsRef.current);
+
+          // 同步清空，防止重入或重复发送
+          clearUnsavedProgress();
+          clearStatsUpdates();
+          setUnsavedCount(0);
+          unsavedCountRef.current = 0;
+
+          try {
+            const result = await saveProgress(username, progressList, statsUpdates);
+            if (!result || !result.success) {
+              console.error('[Visibility] saveProgress failed, restoring cache');
+              restoreUnsavedData(backupProgressStr, backupStatsStr);
+            }
+          } catch (e) {
+            console.error('[Visibility] saveProgress error, restoring cache', e);
+            restoreUnsavedData(backupProgressStr, backupStatsStr);
+          }
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isLoggedIn, username, getUnsavedProgressList, getStatsUpdates, clearUnsavedProgress, clearStatsUpdates, restoreUnsavedData]);
 
   // 加载学期数据
   useEffect(() => {
