@@ -94,6 +94,73 @@ export function VocabAppContent() {
   const recordedWordIdsRef = useRef<Set<number>>(new Set());
   const isSavingRef = useRef(false);
 
+  // 单词进度本地缓存
+  const unsavedProgressRef = useRef<{ [wordId: number]: any }>({});
+
+  // 缓存本地进度到 localStorage
+  const cacheLocalProgress = useCallback((wordId: number, progressUpdate: any) => {
+    unsavedProgressRef.current[wordId] = progressUpdate;
+    try {
+      localStorage.setItem('vocab_unsaved_progress', JSON.stringify(unsavedProgressRef.current));
+    } catch (e) {
+      console.error('Failed to save progress to localStorage:', e);
+    }
+  }, []);
+
+  // 获取当前的未保存进度列表
+  const getUnsavedProgressList = useCallback(() => {
+    return Object.values(unsavedProgressRef.current);
+  }, []);
+
+  // 清除本地未保存进度缓存
+  const clearUnsavedProgress = useCallback(() => {
+    unsavedProgressRef.current = {};
+    try {
+      localStorage.removeItem('vocab_unsaved_progress');
+    } catch (e) {
+      console.error('Failed to clear progress in localStorage:', e);
+    }
+  }, []);
+
+  // 恢复未上报的进度和统计数据（用于发送失败时的合并还原）
+  const restoreUnsavedData = useCallback((backupProgressStr: string, backupStatsStr: string) => {
+    try {
+      if (backupProgressStr) {
+        const backupProgress = JSON.parse(backupProgressStr);
+        const currentProgress = unsavedProgressRef.current;
+        const mergedProgress = { ...backupProgress, ...currentProgress };
+        unsavedProgressRef.current = mergedProgress;
+        localStorage.setItem('vocab_unsaved_progress', JSON.stringify(mergedProgress));
+      }
+    } catch (e) {
+      console.error('Failed to restore progress cache:', e);
+    }
+    try {
+      if (backupStatsStr) {
+        const backupStats = JSON.parse(backupStatsStr);
+        const currentStats = unsavedStatsRef.current;
+        const mergedStats = { ...currentStats };
+        Object.entries(backupStats).forEach(([semId, data]: [string, any]) => {
+          const sId = parseInt(semId);
+          if (!mergedStats[sId]) {
+            mergedStats[sId] = { newWordIds: [], reviewWordIds: [] };
+          }
+          const currentSem = mergedStats[sId];
+          (data.newWordIds || []).forEach((id: number) => {
+            if (!currentSem.newWordIds.includes(id)) currentSem.newWordIds.push(id);
+          });
+          (data.reviewWordIds || []).forEach((id: number) => {
+            if (!currentSem.reviewWordIds.includes(id)) currentSem.reviewWordIds.push(id);
+          });
+        });
+        unsavedStatsRef.current = mergedStats;
+        localStorage.setItem('vocab_unsaved_stats_ids', JSON.stringify(mergedStats));
+      }
+    } catch (e) {
+      console.error('Failed to restore stats cache:', e);
+    }
+  }, []);
+
   // 从 localStorage 加载已记录统计的单词 ID（包括今日已同步和未同步的）
   const loadRecordedWordIds = useCallback(() => {
     const todayStr = getStudyDayString();
@@ -127,6 +194,16 @@ export function VocabAppContent() {
       }
     } catch (e) {
       console.error('Failed to load unsaved word IDs:', e);
+    }
+
+    // 3. 加载本地残留的未同步进度数据
+    try {
+      const unsavedProgressStr = localStorage.getItem('vocab_unsaved_progress');
+      if (unsavedProgressStr) {
+        unsavedProgressRef.current = JSON.parse(unsavedProgressStr);
+      }
+    } catch (e) {
+      console.error('Failed to load unsaved progress from localStorage:', e);
     }
 
     recordedWordIdsRef.current = ids;
@@ -324,85 +401,110 @@ export function VocabAppContent() {
     setIsCheckingAuth(false);
   }, [loadRecordedWordIds]);
 
-  // 启动/登录时，同步 localStorage 中可能残留的未提交统计数据
+  // 启动/登录时，同步 localStorage 中可能残留的未提交进度和统计数据
   useEffect(() => {
-    async function syncUnsavedStats() {
+    async function syncUnsavedData() {
       if (isLoggedIn && username) {
         try {
           const savedStatsStr = localStorage.getItem('vocab_unsaved_stats_ids');
-          if (savedStatsStr) {
+          const savedProgressStr = localStorage.getItem('vocab_unsaved_progress');
+
+          if (savedStatsStr || savedProgressStr) {
             // 立即从 localStorage 中移除，防止 React 18 双挂载 (Double-mount) 引起的并发双发请求
-            localStorage.removeItem('vocab_unsaved_stats_ids');
+            if (savedStatsStr) {
+              localStorage.removeItem('vocab_unsaved_stats_ids');
+            }
+            if (savedProgressStr) {
+              localStorage.removeItem('vocab_unsaved_progress');
+            }
 
-            const savedStats = JSON.parse(savedStatsStr);
-            const statsUpdates = Object.entries(savedStats).map(([semId, data]: [string, any]) => ({
-              semesterId: parseInt(semId),
-              date: getStudyDayString(),
-              newCount: (data.newWordIds || []).length,
-              reviewCount: (data.reviewWordIds || []).length
-            })).filter(update => update.newCount > 0 || update.reviewCount > 0);
+            let statsUpdates: any[] = [];
+            let savedStats: any = null;
+            if (savedStatsStr) {
+              savedStats = JSON.parse(savedStatsStr);
+              statsUpdates = Object.entries(savedStats).map(([semId, data]: [string, any]) => ({
+                semesterId: parseInt(semId),
+                date: getStudyDayString(),
+                newCount: (data.newWordIds || []).length,
+                reviewCount: (data.reviewWordIds || []).length
+              })).filter(update => update.newCount > 0 || update.reviewCount > 0);
+            }
 
-            if (statsUpdates.length > 0) {
-              console.log('[Init Sync] 检测到本地有未上报的统计，开始补录:', statsUpdates);
+            let progressList: any[] = [];
+            if (savedProgressStr) {
+              const savedProgressMap = JSON.parse(savedProgressStr);
+              progressList = Object.values(savedProgressMap);
+            }
+
+            if (progressList.length > 0 || statsUpdates.length > 0) {
+              console.log('[Init Sync] 检测到本地有未上报的数据，开始补录:', { progressCount: progressList.length, statsUpdates });
               const res = await fetch('/api/progress', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, progress: [], statsUpdates }),
+                body: JSON.stringify({ username, progress: progressList, statsUpdates }),
               });
               if (res.ok) {
-                console.log('[Init Sync] 本地残留统计数据补录成功');
+                console.log('[Init Sync] 本地残留数据补录成功');
                 
+                // 清空内存中的进度缓存
+                unsavedProgressRef.current = {};
+
                 // 将补录成功的单词 ID 合并到“今日已同步”集合中
-                const todayStr = getStudyDayString();
-                let syncedIds: number[] = [];
-                try {
-                  const syncedStr = localStorage.getItem('vocab_synced_today_ids');
-                  if (syncedStr) {
-                    const parsed = JSON.parse(syncedStr);
-                    if (parsed.date === todayStr && Array.isArray(parsed.wordIds)) {
-                      syncedIds = parsed.wordIds;
+                if (savedStats) {
+                  const todayStr = getStudyDayString();
+                  let syncedIds: number[] = [];
+                  try {
+                    const syncedStr = localStorage.getItem('vocab_synced_today_ids');
+                    if (syncedStr) {
+                      const parsed = JSON.parse(syncedStr);
+                      if (parsed.date === todayStr && Array.isArray(parsed.wordIds)) {
+                        syncedIds = parsed.wordIds;
+                      }
                     }
+                  } catch (e) {
+                    console.error(e);
                   }
-                } catch (e) {
-                  console.error(e);
-                }
 
-                Object.values(savedStats).forEach((data: any) => {
-                  if (Array.isArray(data.newWordIds)) {
-                    data.newWordIds.forEach((id: number) => {
-                      if (!syncedIds.includes(id)) syncedIds.push(id);
-                    });
-                  }
-                  if (Array.isArray(data.reviewWordIds)) {
-                    data.reviewWordIds.forEach((id: number) => {
-                      if (!syncedIds.includes(id)) syncedIds.push(id);
-                    });
-                  }
-                });
+                  Object.values(savedStats).forEach((data: any) => {
+                    if (Array.isArray(data.newWordIds)) {
+                      data.newWordIds.forEach((id: number) => {
+                        if (!syncedIds.includes(id)) syncedIds.push(id);
+                      });
+                    }
+                    if (Array.isArray(data.reviewWordIds)) {
+                      data.reviewWordIds.forEach((id: number) => {
+                        if (!syncedIds.includes(id)) syncedIds.push(id);
+                      });
+                    }
+                  });
 
-                try {
-                  localStorage.setItem('vocab_synced_today_ids', JSON.stringify({
-                    date: todayStr,
-                    wordIds: syncedIds
-                  }));
-                } catch (e) {
-                  console.error(e);
+                  try {
+                    localStorage.setItem('vocab_synced_today_ids', JSON.stringify({
+                      date: todayStr,
+                      wordIds: syncedIds
+                    }));
+                  } catch (e) {
+                    console.error(e);
+                  }
                 }
               } else {
-                console.error('[Init Sync] 本地残留统计数据补录失败，尝试恢复本地缓存');
-                // 如果失败且本地没有新的统计写入，则把旧的数据恢复回去
-                if (!localStorage.getItem('vocab_unsaved_stats_ids')) {
+                console.error('[Init Sync] 本地残留数据补录失败，尝试恢复本地缓存');
+                // 如果失败且本地没有新的写入，则恢复回去
+                if (savedStatsStr && !localStorage.getItem('vocab_unsaved_stats_ids')) {
                   localStorage.setItem('vocab_unsaved_stats_ids', savedStatsStr);
+                }
+                if (savedProgressStr && !localStorage.getItem('vocab_unsaved_progress')) {
+                  localStorage.setItem('vocab_unsaved_progress', savedProgressStr);
                 }
               }
             }
           }
         } catch (e) {
-          console.error('[Init Sync] 解析本地残留统计数据失败:', e);
+          console.error('[Init Sync] 解析或同步本地残留数据失败:', e);
         }
       }
     }
-    syncUnsavedStats();
+    syncUnsavedData();
   }, [isLoggedIn, username]);
 
   // 加载学期数据
@@ -991,6 +1093,9 @@ export function VocabAppContent() {
       inPenalty: !success,
     };
 
+    // 缓存本地进度到 localStorage，防止刷新/强退丢失进度
+    cacheLocalProgress(word.id, progressUpdate);
+
     // 使用函数式更新确保计数正确
     const newCount = unsavedCountRef.current + 1;
     setUnsavedCount(newCount);
@@ -1027,23 +1132,31 @@ export function VocabAppContent() {
       return updated;
     });
     
-    // 使用 ref 检查，确保使用最新值
+    // 使用 ref 检查，确保使用 dynamic 判定自动同步
     if (newCount >= 4) {
       // 1. 同步清空进度计数，防止在 await 期间再次触发 saveProgress
       setUnsavedCount(0);
       unsavedCountRef.current = 0;
 
-      // 2. 提取并同步清空统计缓存，防止在 await 期间重复提交统计
+      // 2. 提取并同步清空进度及统计缓存，防止在 await 期间重复提交统计
+      const progressList = getUnsavedProgressList();
       const statsUpdates = getStatsUpdates();
+      
+      const backupProgressStr = JSON.stringify(unsavedProgressRef.current);
+      const backupStatsStr = JSON.stringify(unsavedStatsRef.current);
+
+      clearUnsavedProgress();
       clearStatsUpdates();
 
       try {
-        const result = await saveProgress(username, [progressUpdate], statsUpdates);
+        const result = await saveProgress(username, progressList, statsUpdates);
         if (!result || !result.success) {
-          console.error('[updateWordState] saveProgress failed');
+          console.error('[updateWordState] saveProgress failed, restoring cache');
+          restoreUnsavedData(backupProgressStr, backupStatsStr);
         }
       } catch (e) {
-        console.error('[updateWordState] saveProgress error', e);
+        console.error('[updateWordState] saveProgress error, restoring cache', e);
+        restoreUnsavedData(backupProgressStr, backupStatsStr);
       }
     }
   };
@@ -1083,8 +1196,12 @@ export function VocabAppContent() {
     
     const statsUpdates = getStatsUpdates();
 
+    const backupProgressStr = JSON.stringify(unsavedProgressRef.current);
+    const backupStatsStr = JSON.stringify(unsavedStatsRef.current);
+
     // 同步清空，防止重入或后续重复保存
     clearStatsUpdates();
+    clearUnsavedProgress();
     setUnsavedCount(0);
     unsavedCountRef.current = 0;
 
@@ -1093,11 +1210,16 @@ export function VocabAppContent() {
         console.log('[finishSession] 调用 saveProgress', { progressCount: progressToSave.length, statsUpdatesCount: statsUpdates.length });
         const result = await saveProgress(username, progressToSave, statsUpdates);
         console.log('[finishSession] saveProgress 结果:', result);
+        if (!result || !result.success) {
+          console.error('[finishSession] saveProgress failed, restoring cache');
+          restoreUnsavedData(backupProgressStr, backupStatsStr);
+        }
       } else {
         console.log('[finishSession] 没有进度或统计需要保存');
       }
     } catch (e) {
-      console.error('[finishSession] saveProgress error', e);
+      console.error('[finishSession] saveProgress error, restoring cache', e);
+      restoreUnsavedData(backupProgressStr, backupStatsStr);
     } finally {
       isSavingRef.current = false;
       if (selectedSemesterIds.length > 0) {
