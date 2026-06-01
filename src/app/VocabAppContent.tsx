@@ -89,42 +89,131 @@ export function VocabAppContent() {
   const currentWordRef = useRef<SessionWord | null>(null);  // 添加 currentWord ref
 
   // 学习统计本地缓存和防重记录
-  const unsavedStatsRef = useRef<{ [semesterId: number]: { newCount: number; reviewCount: number } }>({});
+  // unsavedStatsRef: { [semesterId]: { newWordIds: number[], reviewWordIds: number[] } }
+  const unsavedStatsRef = useRef<{ [semesterId: number]: { newWordIds: number[]; reviewWordIds: number[] } }>({});
   const recordedWordIdsRef = useRef<Set<number>>(new Set());
   const isSavingRef = useRef(false);
 
-  // 累加本地统计数据并同步写入 localStorage
-  const incrementLocalStat = useCallback((semesterId: number, type: 'new' | 'review') => {
-    if (!unsavedStatsRef.current[semesterId]) {
-      unsavedStatsRef.current[semesterId] = { newCount: 0, reviewCount: 0 };
-    }
-    if (type === 'new') {
-      unsavedStatsRef.current[semesterId].newCount += 1;
-    } else {
-      unsavedStatsRef.current[semesterId].reviewCount += 1;
-    }
+  // 从 localStorage 加载已记录统计的单词 ID（包括今日已同步和未同步的）
+  const loadRecordedWordIds = useCallback(() => {
+    const todayStr = getStudyDayString();
+    const ids = new Set<number>();
+
+    // 1. 加载今日已同步的词 ID
     try {
-      localStorage.setItem('vocab_unsaved_stats', JSON.stringify(unsavedStatsRef.current));
+      const syncedStr = localStorage.getItem('vocab_synced_today_ids');
+      if (syncedStr) {
+        const parsed = JSON.parse(syncedStr);
+        if (parsed.date === todayStr && Array.isArray(parsed.wordIds)) {
+          parsed.wordIds.forEach((id: number) => ids.add(id));
+        } else if (parsed.date !== todayStr) {
+          localStorage.removeItem('vocab_synced_today_ids');
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load synced word IDs:', e);
+    }
+
+    // 2. 加载未同步的词 ID
+    try {
+      const unsavedStr = localStorage.getItem('vocab_unsaved_stats_ids');
+      if (unsavedStr) {
+        const parsed = JSON.parse(unsavedStr);
+        Object.values(parsed).forEach((data: any) => {
+          if (Array.isArray(data.newWordIds)) data.newWordIds.forEach((id: number) => ids.add(id));
+          if (Array.isArray(data.reviewWordIds)) data.reviewWordIds.forEach((id: number) => ids.add(id));
+        });
+        unsavedStatsRef.current = parsed;
+      }
+    } catch (e) {
+      console.error('Failed to load unsaved word IDs:', e);
+    }
+
+    recordedWordIdsRef.current = ids;
+    console.log('[Stats] Loaded recorded word IDs for today:', Array.from(ids));
+  }, []);
+
+  // 累加本地统计数据并同步写入 localStorage
+  const incrementLocalStat = useCallback((semesterId: number, type: 'new' | 'review', wordId: number) => {
+    // 防重记录
+    recordedWordIdsRef.current.add(wordId);
+
+    if (!unsavedStatsRef.current[semesterId]) {
+      unsavedStatsRef.current[semesterId] = { newWordIds: [], reviewWordIds: [] };
+    }
+
+    const current = unsavedStatsRef.current[semesterId];
+    if (type === 'new') {
+      if (!current.newWordIds.includes(wordId)) {
+        current.newWordIds.push(wordId);
+      }
+    } else {
+      if (!current.reviewWordIds.includes(wordId)) {
+        current.reviewWordIds.push(wordId);
+      }
+    }
+
+    try {
+      localStorage.setItem('vocab_unsaved_stats_ids', JSON.stringify(unsavedStatsRef.current));
     } catch (e) {
       console.error('Failed to sync unsaved stats to localStorage:', e);
     }
   }, []);
 
-  // 获取当前的统计更新列表
+  // 获取当前的统计更新列表（只更新数字）
   const getStatsUpdates = useCallback(() => {
-    return Object.entries(unsavedStatsRef.current).map(([semId, counts]) => ({
+    return Object.entries(unsavedStatsRef.current).map(([semId, data]) => ({
       semesterId: parseInt(semId),
       date: getStudyDayString(),
-      newCount: counts.newCount,
-      reviewCount: counts.reviewCount
+      newCount: (data.newWordIds || []).length,
+      reviewCount: (data.reviewWordIds || []).length
     })).filter(update => update.newCount > 0 || update.reviewCount > 0);
   }, []);
 
-  // 清理本地及 localStorage 中的统计缓存
+  // 清理本地及 localStorage 中的统计缓存，并将这些词 ID 移入今日已同步集合中
   const clearStatsUpdates = useCallback(() => {
+    const todayStr = getStudyDayString();
+    let syncedIds: number[] = [];
+    
+    try {
+      const syncedStr = localStorage.getItem('vocab_synced_today_ids');
+      if (syncedStr) {
+        const parsed = JSON.parse(syncedStr);
+        if (parsed.date === todayStr && Array.isArray(parsed.wordIds)) {
+          syncedIds = parsed.wordIds;
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
+    // 合并当前的未同步词 ID
+    Object.values(unsavedStatsRef.current).forEach((data: any) => {
+      if (Array.isArray(data.newWordIds)) {
+        data.newWordIds.forEach((id: number) => {
+          if (!syncedIds.includes(id)) syncedIds.push(id);
+        });
+      }
+      if (Array.isArray(data.reviewWordIds)) {
+        data.reviewWordIds.forEach((id: number) => {
+          if (!syncedIds.includes(id)) syncedIds.push(id);
+        });
+      }
+    });
+
+    try {
+      localStorage.setItem('vocab_synced_today_ids', JSON.stringify({
+        date: todayStr,
+        wordIds: syncedIds
+      }));
+    } catch (e) {
+      console.error(e);
+    }
+
+    // 清除未同步缓存
     unsavedStatsRef.current = {};
     try {
-      localStorage.removeItem('vocab_unsaved_stats');
+      localStorage.removeItem('vocab_unsaved_stats_ids');
     } catch (e) {
       console.error('Failed to clear stats in localStorage:', e);
     }
@@ -223,8 +312,9 @@ export function VocabAppContent() {
     refreshProgress();
   }, [currentView, isLoggedIn, username]);
 
-  // 初始化 - 检查本地存储的用户名
+  // 初始化 - 检查本地存储的用户名和加载本地去重记录
   useEffect(() => {
+    loadRecordedWordIds();
     const savedUsername = localStorage.getItem('vocab_username');
     if (savedUsername) {
       // 仅验证用户名存在，实际登录在 handleLogin 时进行
@@ -232,24 +322,24 @@ export function VocabAppContent() {
       setIsLoggedIn(true);
     }
     setIsCheckingAuth(false);
-  }, []);
+  }, [loadRecordedWordIds]);
 
   // 启动/登录时，同步 localStorage 中可能残留的未提交统计数据
   useEffect(() => {
     async function syncUnsavedStats() {
       if (isLoggedIn && username) {
         try {
-          const savedStatsStr = localStorage.getItem('vocab_unsaved_stats');
+          const savedStatsStr = localStorage.getItem('vocab_unsaved_stats_ids');
           if (savedStatsStr) {
             // 立即从 localStorage 中移除，防止 React 18 双挂载 (Double-mount) 引起的并发双发请求
-            localStorage.removeItem('vocab_unsaved_stats');
+            localStorage.removeItem('vocab_unsaved_stats_ids');
 
             const savedStats = JSON.parse(savedStatsStr);
-            const statsUpdates = Object.entries(savedStats).map(([semId, counts]: [string, any]) => ({
+            const statsUpdates = Object.entries(savedStats).map(([semId, data]: [string, any]) => ({
               semesterId: parseInt(semId),
               date: getStudyDayString(),
-              newCount: counts.newCount || 0,
-              reviewCount: counts.reviewCount || 0
+              newCount: (data.newWordIds || []).length,
+              reviewCount: (data.reviewWordIds || []).length
             })).filter(update => update.newCount > 0 || update.reviewCount > 0);
 
             if (statsUpdates.length > 0) {
@@ -261,11 +351,48 @@ export function VocabAppContent() {
               });
               if (res.ok) {
                 console.log('[Init Sync] 本地残留统计数据补录成功');
+                
+                // 将补录成功的单词 ID 合并到“今日已同步”集合中
+                const todayStr = getStudyDayString();
+                let syncedIds: number[] = [];
+                try {
+                  const syncedStr = localStorage.getItem('vocab_synced_today_ids');
+                  if (syncedStr) {
+                    const parsed = JSON.parse(syncedStr);
+                    if (parsed.date === todayStr && Array.isArray(parsed.wordIds)) {
+                      syncedIds = parsed.wordIds;
+                    }
+                  }
+                } catch (e) {
+                  console.error(e);
+                }
+
+                Object.values(savedStats).forEach((data: any) => {
+                  if (Array.isArray(data.newWordIds)) {
+                    data.newWordIds.forEach((id: number) => {
+                      if (!syncedIds.includes(id)) syncedIds.push(id);
+                    });
+                  }
+                  if (Array.isArray(data.reviewWordIds)) {
+                    data.reviewWordIds.forEach((id: number) => {
+                      if (!syncedIds.includes(id)) syncedIds.push(id);
+                    });
+                  }
+                });
+
+                try {
+                  localStorage.setItem('vocab_synced_today_ids', JSON.stringify({
+                    date: todayStr,
+                    wordIds: syncedIds
+                  }));
+                } catch (e) {
+                  console.error(e);
+                }
               } else {
                 console.error('[Init Sync] 本地残留统计数据补录失败，尝试恢复本地缓存');
                 // 如果失败且本地没有新的统计写入，则把旧的数据恢复回去
-                if (!localStorage.getItem('vocab_unsaved_stats')) {
-                  localStorage.setItem('vocab_unsaved_stats', savedStatsStr);
+                if (!localStorage.getItem('vocab_unsaved_stats_ids')) {
+                  localStorage.setItem('vocab_unsaved_stats_ids', savedStatsStr);
                 }
               }
             }
@@ -441,8 +568,8 @@ export function VocabAppContent() {
       return;
     }
 
-    // 重置本轮会话已记录统计的单词 ID 集合
-    recordedWordIdsRef.current = new Set();
+    // 从 localStorage 重新加载今日已上报及本地未同步的单词统计记录，进行增量防重
+    loadRecordedWordIds();
 
     setSessionType(type);
 
@@ -818,20 +945,22 @@ export function VocabAppContent() {
       recordedWordIdsRef.current.add(wordId);
       if (word.isNewThisSession) {
         if (success) {
-          // 新词第一次交互，且成功了：计为新词
-          incrementLocalStat(word.semester_id, 'new');
-        } else {
-          // 新词第一次交互，但失败了：先不记，等惩罚毕业再记为复习词
+          if (justFinishedPenalty) {
+            // 新词答错后惩罚毕业：计为复习
+            incrementLocalStat(word.semester_id, 'review', wordId);
+          } else {
+            // 新词直接一次拼对：计为新词
+            incrementLocalStat(word.semester_id, 'new', wordId);
+          }
         }
       } else {
-        // 老词首次交互（无论对错）：计为复习词
-        incrementLocalStat(word.semester_id, 'review');
+        // 老词首次交互（无论对错）：计为复习
+        incrementLocalStat(word.semester_id, 'review', wordId);
       }
     } else {
-      // 已经记录过该词（可能是新词刚才答错，现在惩罚模式通关）
+      // 已经记录过该词（可能是在同一 session 之前保存过进度的老词，或者新词答错本次惩罚毕业）
       if (word.isNewThisSession && success && justFinishedPenalty) {
-        // 新词在惩罚模式下通关毕业：计为复习词
-        incrementLocalStat(word.semester_id, 'review');
+        incrementLocalStat(word.semester_id, 'review', wordId);
       }
     }
     
